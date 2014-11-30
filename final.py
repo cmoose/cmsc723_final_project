@@ -13,6 +13,12 @@ def main():
         train = load_training_data(TRAIN)
         generate_train_dev(train)
 
+    train = pickle.load(open(PKL_TRAIN, "rb"))
+    dev = pickle.load(open(PKL_DEV, "rb"))
+
+    print len(train)
+    print len(dev)
+
 
 def load_training_data(filename):
     data = []
