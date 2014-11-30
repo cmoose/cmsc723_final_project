@@ -21,7 +21,7 @@ def main():
 
 
 def load_training_data(filename):
-    data = []
+    data = {}
     with open(filename, 'rb') as csvfile:
         content = csv.reader(csvfile, delimiter=',', quotechar='"')
         for row in content:
@@ -36,7 +36,9 @@ def load_training_data(filename):
                 new_line = {'id': question_id, 'text': text, 'quanta': quanta, 'answer': answer,
                             'sentence_pos': sentence_pos,
                             'wiki_score': wiki_score, 'category': category}
-                data.append(new_line)
+                if data.get(question_id) is None:
+                    data[question_id] = []
+                data[question_id].append(new_line)
     return data
 
 
@@ -61,10 +63,17 @@ def generate_train_dev(data):
 
 
 def set_dev_data(data):
-    numpy.random.shuffle(data)
-    split = int(len(data) * .80)
-    train = data[:split]
-    dev = data[split + 1:]
+    selected_data = []
+    for item in data.values():
+        # The data is a collection of questions,
+        # we don't want to allow duplicate questions,
+        # here we select the first object for the question,
+        # in this case it gives us the easiest to predict test set
+        selected_data.append(item[len(item)-1])
+    numpy.random.shuffle(selected_data)
+    split = int(len(selected_data) * .80)
+    train = selected_data[:split]
+    dev = selected_data[split + 1:]
     return train, dev
 
 
