@@ -2,6 +2,7 @@ import csv
 import numpy
 import pickle
 import os
+from util import *
 
 PKL_TRAIN = 'data/train.pkl'
 PKL_DEV = 'data/dev.pkl'
@@ -9,12 +10,14 @@ TRAIN = 'data/train.csv'
 
 
 def main():
+    answer_map = [] #Index is the map
     if (not os.path.isfile(PKL_TRAIN)) | (not os.path.isfile(PKL_DEV)):
         train = load_training_data(TRAIN)
         generate_train_dev(train)
 
     train = pickle.load(open(PKL_TRAIN, "rb"))
     dev = pickle.load(open(PKL_DEV, "rb"))
+    answer_map = create_answer_map(train)
 
     print len(train)
     print len(dev)
@@ -47,11 +50,22 @@ def format_scores(data):
     for item in data:
         split_data = item.split(':')
         if len(split_data) == 2:
-            answer = split_data[0]
+            answer = split_data[0].strip()
             confidence = float(split_data[1])
             formatted_data[confidence] = answer
     return formatted_data
 
+
+def create_answer_map(data):
+    answer_map = []
+    for item in data:
+        for k,v in item['wiki_score'].items():
+            if answer_map.count(v) == 0:
+                answer_map.append(v)
+        for k,v in item['quanta'].items():
+            if answer_map.count(v) == 0:
+                answer_map.append(v)
+    return answer_map
 
 def generate_train_dev(data):
     train, dev = set_dev_data(data)
@@ -76,6 +90,12 @@ def set_dev_data(data):
     dev = selected_data[split + 1:]
     return train, dev
 
+def questionFeatures(item):
+    category = item['category']
+    feats = Counter()
+    feats[category] = 1
+
+    return feats
 
 if __name__ == "__main__":
     main()
