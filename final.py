@@ -2,7 +2,6 @@ import csv
 import numpy
 import pickle
 import os
-import subprocess
 from util import *
 import re
 
@@ -57,7 +56,7 @@ def load_training_data(filename):
                 category = row[6]
                 new_line = {'id': question_id, 'text': text, 'quanta': quanta, 'answer': answer,
                             'sentence_pos': sentence_pos,
-                            'wiki_score': wiki_score, 'category': category}
+                            'wiki': wiki_score, 'category': category}
                 if data.get(question_id) is None:
                     data[question_id] = []
                 data[question_id].append(new_line)
@@ -78,7 +77,7 @@ def format_scores(data):
 def create_answer_map(data):
     answer_map = []
     for item in data:
-        for k, v in item['wiki_score'].items():
+        for k, v in item['wiki'].items():
             if answer_map.count(v) == 0:
                 answer_map.append(v)
         for k, v in item['quanta'].items():
@@ -112,14 +111,20 @@ def set_dev_data(data):
 
 
 # # type train = 1
-## type test = 0
+# # type test = 0
 def answer_features(item, data_type):
     array_of_answers = []
     correct_answer = item['answer']
-    for k, v in item['wiki_score'].items():
+    get_labels(array_of_answers, item, 'wiki', correct_answer, data_type)
+    get_labels(array_of_answers, item, 'quanta', correct_answer, data_type)
+    return array_of_answers
+
+
+def get_labels(formatted_answers, item, label, correct_answer, data_type):
+    for k, v in item[label].items():
         feats = Counter()
         feats['a_' + v] = 1
-        feats['wiki_prob'] = k
+        feats[label + '_prob'] = k
 
         is_correct = 1  # False
         if v == correct_answer and data_type:
@@ -127,22 +132,8 @@ def answer_features(item, data_type):
 
         # append new answer to array_of_answers
         new_answer = (is_correct, feats, {})
-        array_of_answers.append(new_answer)
-
-    for k, v in item['quanta'].items():
-        feats = Counter()
-        feats['a_' + v] = 1
-        feats['quanta_prob'] = k
-
-        is_correct = 1  # False
-        if v == correct_answer:
-            is_correct = 0
-
-        # append new answer to array_of_answers
-        new_answer = (is_correct, feats, {})
-        array_of_answers.append(new_answer)
-
-    return array_of_answers
+        formatted_answers.append(new_answer)
+    return formatted_answers
 
 
 def question_features(item):
@@ -159,7 +150,7 @@ def question_features(item):
     return feats
 
 
-## train type = 1
+# # train type = 1
 ## test type = 0
 def generate_vw_data(data, data_type, output_filename=None):
     with open(output_filename, 'w') as h:
@@ -189,7 +180,8 @@ def write_vw_example(h, example, feature_set_tracker=None):
                     h.write(':')
                     h.write(str(v))
                 if feature_set_tracker is None:
-                    if not feature_set_tracker.has_key(namespace): feature_set_tracker[namespace] = {}
+                    if not feature_set_tracker.has_key(namespace):
+                        feature_set_tracker[namespace] = {}
                     feature_set_tracker[namespace][ff] = f
 
     (src, trans) = example
