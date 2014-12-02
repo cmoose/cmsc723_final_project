@@ -1,6 +1,7 @@
 import sys
 import inspect
 
+
 class Counter(dict):
     """
     A counter keeps track of counts for a set of keys.
@@ -41,6 +42,7 @@ class Counter(dict):
     subtracted or multiplied together.  See below for details.  They can
     also be normalized and their total count and arg max can be extracted.
     """
+
     def __getitem__(self, idx):
         self.setdefault(idx, 0)
         return dict.__getitem__(self, idx)
@@ -82,7 +84,7 @@ class Counter(dict):
         ['second', 'third', 'first']
         """
         sortedItems = self.items()
-        compare = lambda x, y:  sign(y[1] - x[1])
+        compare = lambda x, y: sign(y[1] - x[1])
         sortedItems.sort(cmp=compare)
         return [x[0] for x in sortedItems]
 
@@ -118,7 +120,7 @@ class Counter(dict):
         """
         return Counter(dict.copy(self))
 
-    def __mul__(self, y ):
+    def __mul__(self, y):
         """
         Multiplying two counters gives the dot product of their vectors where
         each unique label is a vector element.
@@ -137,7 +139,7 @@ class Counter(dict):
         sum = 0
         x = self
         if len(x) > len(y):
-            x,y = y,x
+            x, y = y, x
         for key in x:
             if key not in y:
                 continue
@@ -162,7 +164,7 @@ class Counter(dict):
         for key, value in y.items():
             self[key] += value
 
-    def __add__( self, y ):
+    def __add__(self, y):
         """
         Adding two counters gives a counter with the union of all keys and
         counts of the second added to counts of the first.
@@ -188,7 +190,7 @@ class Counter(dict):
             addend[key] = y[key]
         return addend
 
-    def __sub__( self, y ):
+    def __sub__(self, y):
         """
         Subtracting a counter from another gives a counter with the union of all keys and
         counts of the second subtracted from counts of the first.
@@ -213,6 +215,7 @@ class Counter(dict):
                 continue
             addend[key] = -1 * y[key]
         return addend
+
 
 def normalize(vectorOrCounter):
     """

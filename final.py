@@ -13,8 +13,9 @@ VW_INPUT_DEV = 'vw/qa_vw.de'
 VW_MODEL = 'vw/qa_vw.model'
 vw_bin = '/usr/local/bin/vw'
 
+
 def main():
-    #answer_map = [] #Index is the map
+    # answer_map = [] #Index is the map
     if (not os.path.isfile(PKL_TRAIN)) | (not os.path.isfile(PKL_DEV)):
         train = load_training_data(TRAIN)
         generate_train_dev(train)
@@ -24,13 +25,14 @@ def main():
     #answer_map = create_answer_map(train)
 
     print 'Generating Classification Data'
-    generateVWData(dev, VW_INPUT_DEV)
     generateVWData(train, VW_INPUT_TRAIN)
-    
+    generateVWDevData(dev, VW_INPUT_DEV)
+
+
     trainVW(VW_INPUT_DEV, VW_MODEL, True)
-    
+
     train_pred = testVW(VW_INPUT_DEV, VW_MODEL, True)
-    
+
     print len(train)
     print len(dev)
 
@@ -71,13 +73,14 @@ def format_scores(data):
 def create_answer_map(data):
     answer_map = []
     for item in data:
-        for k,v in item['wiki_score'].items():
+        for k, v in item['wiki_score'].items():
             if answer_map.count(v) == 0:
                 answer_map.append(v)
-        for k,v in item['quanta'].items():
+        for k, v in item['quanta'].items():
             if answer_map.count(v) == 0:
                 answer_map.append(v)
     return answer_map
+
 
 def generate_train_dev(data):
     train, dev = set_dev_data(data)
@@ -95,43 +98,69 @@ def set_dev_data(data):
         # we don't want to allow duplicate questions,
         # here we select the first object for the question,
         # in this case it gives us the easiest to predict test set
-        selected_data.append(item[len(item)-1])
+        selected_data.append(item[len(item) - 1])
     numpy.random.shuffle(selected_data)
     split = int(len(selected_data) * .80)
     train = selected_data[:split]
     dev = selected_data[split + 1:]
     return train, dev
 
+
 def answerFeatures(item):
     array_of_answers = []
     correct_answer = item['answer']
-    for k,v in item['wiki_score'].items():
+    for k, v in item['wiki_score'].items():
         feats = Counter()
         feats['a_' + v] = 1
         feats['wiki_prob'] = k
-        
-        isCorrect = 1 #False
+
+        isCorrect = 1  # False
         if v == correct_answer:
             isCorrect = 0
-        
-        #append new answer to array_of_answers
+
+        # append new answer to array_of_answers
         new_answer = (isCorrect, feats, {})
         array_of_answers.append(new_answer)
-        
-    for k,v in item['quanta'].items():
+
+    for k, v in item['quanta'].items():
         feats = Counter()
         feats['a_' + v] = 1
         feats['quanta_prob'] = k
 
-        isCorrect = 1 #False
+        isCorrect = 1  # False
         if v == correct_answer:
             isCorrect = 0
-        
-        #append new answer to array_of_answers
+
+        # append new answer to array_of_answers
         new_answer = (isCorrect, feats, {})
         array_of_answers.append(new_answer)
-    
+
     return array_of_answers
+
+
+def answerFeaturesDev(item):
+    array_of_answers = []
+    correct_answer = item['answer']
+    for k, v in item['wiki_score'].items():
+        feats = Counter()
+        feats['a_' + v] = 1
+        feats['wiki_prob'] = k
+
+        # append new unknown answer to array_of_answers
+        new_answer = (1, feats, {})
+        array_of_answers.append(new_answer)
+
+    for k, v in item['quanta'].items():
+        feats = Counter()
+        feats['a_' + v] = 1
+        feats['quanta_prob'] = k
+
+        # append new unknown answer to array_of_answers
+        new_answer = (1, feats, {})
+        array_of_answers.append(new_answer)
+
+    return array_of_answers
+
 
 
 def questionFeatures(item):
@@ -153,6 +182,16 @@ def generateVWData(data, outputFilename=None):
     for item in data:
         q_feats = questionFeatures(item)
         a_feats = answerFeatures(item)
+        example = (q_feats, a_feats)
+        writeVWExample(h, example, {})
+    h.close()
+
+
+def generateVWDevData(data, outputFilename=None):
+    h = open(outputFilename, 'w')
+    for item in data:
+        q_feats = questionFeatures(item)
+        a_feats = answerFeaturesDev(item)
         example = (q_feats, a_feats)
         writeVWExample(h, example, {})
     h.close()
