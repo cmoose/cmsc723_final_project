@@ -135,10 +135,16 @@ def answerFeatures(item):
 
 
 def questionFeatures(item):
-    category = 'cat_' + item['category']
+    category = 'cat_' + item['category']            # shared feature - category
+    sentence_pos = 'sent_' + item['sentence_pos']   # sentence position
+    words = item['text'].split()                    # question text divided into words
+    
     feats = Counter()
+    for a in range(len(words)):
+        feats['sc_' + words[a]] +=1
     feats[category] = 1
-
+    feats[sentence_pos] = 1
+    
     return feats
 
 
