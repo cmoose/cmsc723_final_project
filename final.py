@@ -2,8 +2,10 @@ import csv
 import numpy
 import pickle
 import os
+import subprocess
 from util import *
 import re
+
 
 PKL_TRAIN = 'data/train.pkl'
 PKL_DEV = 'data/dev.pkl'
@@ -22,16 +24,19 @@ def main():
 
     train = pickle.load(open(PKL_TRAIN, "rb"))
     dev = pickle.load(open(PKL_DEV, "rb"))
-    #answer_map = create_answer_map(train)
+    # answer_map = create_answer_map(train)
 
     print 'Generating Classification Data'
-    generateVWData(train, VW_INPUT_TRAIN)
-    generateVWDevData(dev, VW_INPUT_DEV)
+    # training type_data
+    generate_vw_data(train, 1, VW_INPUT_TRAIN)
+    # testing type_data
+    generate_vw_data(dev, 0, VW_INPUT_DEV)
 
+    print 'Training Data'
+    train_vw(VW_INPUT_TRAIN, VW_MODEL, True)
 
-    trainVW(VW_INPUT_DEV, VW_MODEL, True)
-
-    train_pred = testVW(VW_INPUT_DEV, VW_MODEL, True)
+    print 'Outputting Test Results'
+    test_vw(VW_INPUT_DEV, VW_MODEL, True)
 
     print len(train)
     print len(dev)
@@ -106,7 +111,9 @@ def set_dev_data(data):
     return train, dev
 
 
-def answerFeatures(item):
+# # type train = 1
+## type test = 0
+def answer_features(item, data_type):
     array_of_answers = []
     correct_answer = item['answer']
     for k, v in item['wiki_score'].items():
@@ -114,12 +121,12 @@ def answerFeatures(item):
         feats['a_' + v] = 1
         feats['wiki_prob'] = k
 
-        isCorrect = 1  # False
-        if v == correct_answer:
-            isCorrect = 0
+        is_correct = 1  # False
+        if v == correct_answer and data_type:
+            is_correct = 0
 
         # append new answer to array_of_answers
-        new_answer = (isCorrect, feats, {})
+        new_answer = (is_correct, feats, {})
         array_of_answers.append(new_answer)
 
     for k, v in item['quanta'].items():
@@ -127,157 +134,97 @@ def answerFeatures(item):
         feats['a_' + v] = 1
         feats['quanta_prob'] = k
 
-        isCorrect = 1  # False
+        is_correct = 1  # False
         if v == correct_answer:
-            isCorrect = 0
+            is_correct = 0
 
         # append new answer to array_of_answers
-        new_answer = (isCorrect, feats, {})
+        new_answer = (is_correct, feats, {})
         array_of_answers.append(new_answer)
 
     return array_of_answers
 
 
-def answerFeaturesDev(item):
-    array_of_answers = []
-    correct_answer = item['answer']
-    for k, v in item['wiki_score'].items():
-        feats = Counter()
-        feats['a_' + v] = 1
-        feats['wiki_prob'] = k
+def question_features(item):
+    category = 'cat_' + item['category']  # shared feature - category
+    sentence_pos = 'sent_' + item['sentence_pos']  # sentence position
+    words = item['text'].split()  # question text divided into words
 
-        # append new unknown answer to array_of_answers
-        new_answer = (1, feats, {})
-        array_of_answers.append(new_answer)
-
-    for k, v in item['quanta'].items():
-        feats = Counter()
-        feats['a_' + v] = 1
-        feats['quanta_prob'] = k
-
-        # append new unknown answer to array_of_answers
-        new_answer = (1, feats, {})
-        array_of_answers.append(new_answer)
-
-    return array_of_answers
-
-
-
-def questionFeatures(item):
-    category = 'cat_' + item['category']            # shared feature - category
-    sentence_pos = 'sent_' + item['sentence_pos']   # sentence position
-    words = item['text'].split()                    # question text divided into words
-    
     feats = Counter()
     for a in range(len(words)):
-        feats['sc_' + words[a]] +=1
+        feats['sc_' + words[a]] += 1
     feats[category] = 1
     feats[sentence_pos] = 1
-    
+
     return feats
 
 
-def generateVWData(data, outputFilename=None):
-    h = open(outputFilename, 'w')
-    for item in data:
-        q_feats = questionFeatures(item)
-        a_feats = answerFeatures(item)
-        example = (q_feats, a_feats)
-        writeVWExample(h, example, {})
-    h.close()
-
-
-def generateVWDevData(data, outputFilename=None):
-    h = open(outputFilename, 'w')
-    for item in data:
-        q_feats = questionFeatures(item)
-        a_feats = answerFeaturesDev(item)
-        example = (q_feats, a_feats)
-        writeVWExample(h, example, {})
-    h.close()
+## train type = 1
+## test type = 0
+def generate_vw_data(data, data_type, output_filename=None):
+    with open(output_filename, 'w') as h:
+        for item in data:
+            q_feats = question_features(item)
+            a_feats = answer_features(item, data_type)
+            example = (q_feats, a_feats)
+            write_vw_example(h, example, {})
 
 
 # write a vw-style example to file
-def writeVWExample(h, example, featureSetTracker=None):
-    def sanitizeFeature(f):
+def write_vw_example(h, example, feature_set_tracker=None):
+    def sanitize_feature(f):
         return re.sub(':', '_COLON_',
                       re.sub('\|', '_PIPE_',
                              re.sub('[\s]', '_', f)))
 
-    def printFeatureSet(namespace, fdict):
+    def print_feature_set(namespace, fdict):
         h.write(' |')
         h.write(namespace)
         for f, v in fdict.iteritems():
             h.write(' ')
             if abs(v) > 1e-6:
-                ff = sanitizeFeature(f)
+                ff = sanitize_feature(f)
                 h.write(ff)
                 if abs(v - 1) > 1e-6:
                     h.write(':')
                     h.write(str(v))
-                if featureSetTracker is None:
-                    if not featureSetTracker.has_key(namespace): featureSetTracker[namespace] = {}
-                    featureSetTracker[namespace][ff] = f
+                if feature_set_tracker is None:
+                    if not feature_set_tracker.has_key(namespace): feature_set_tracker[namespace] = {}
+                    feature_set_tracker[namespace][ff] = f
 
     (src, trans) = example
     if len(src) > 0:
         h.write('shared')
-        printFeatureSet('s', src)
+        print_feature_set('s', src)
         h.write('\n')
     for i in range(len(trans)):
         (cost, tgt, pair) = trans[i]
         h.write(str(i + 1))
         h.write(':')
         h.write(str(cost))
-        printFeatureSet('t', tgt)
-        printFeatureSet('p', pair)
+        print_feature_set('t', tgt)
+        print_feature_set('p', pair)
         h.write('\n')
     h.write('\n')
 
 
-def trainVW(dataFilename, modelFilename, quietVW=False):
-    cmd = vw_bin + ' -k -c -b 25 --holdout_off --passes 10 -q st --power_t 0.5 --csoaa_ldf m -d ' + dataFilename + ' -f ' + modelFilename
-    if quietVW: cmd += ' --quiet'
+def train_vw(data_filename, model_filename, quiet_vw=False):
+    cmd = vw_bin + ' -k -c -b 25 --holdout_off --passes 10 -q st --power_t 0.5 --csoaa_ldf m -d ' + data_filename + ' -f ' + model_filename
+    run_vw(cmd, quiet_vw)
+
+
+def test_vw(data_filename, model_filename, quiet_vw=False):
+    cmd = vw_bin + ' -t -q st -d ' + data_filename + ' -i ' + model_filename + ' -r ' + data_filename + '.rawpredictions'
+    run_vw(cmd, quiet_vw)
+
+
+def run_vw(cmd, quiet_vw):
+    if quiet_vw:
+        cmd += ' --quiet'
     print 'executing: ', cmd
     p = os.system(cmd)
     if p != 0:
         raise Exception('execution of vw failed!  return value=' + str(p))
-
-
-def testVW(dataFilename, modelFilename, quietVW=False):
-    cmd = vw_bin + ' -t -q st -d ' + dataFilename + ' -i ' + modelFilename + ' -r ' + dataFilename + '.rawpredictions'
-    if quietVW: cmd += ' --quiet'
-    print 'executing: ', cmd
-    p = os.system(cmd)
-    if p != 0:
-        raise Exception('execution of vw failed!  return value=' + str(p))
-
-    h = open(dataFilename + '.rawpredictions')
-    predictions = []
-
-    this = []
-    thisBestId = -1
-    thisBestVal = 0
-    for l in h.readlines():
-        l = l.strip()
-        res = l.split(':')
-        if len(l) == 0:
-            predictions.append((thisBestId - 1, predictions))
-            this = []
-            thisBestId = -1
-            thisBestVal = 0
-        elif len(res) == 2:
-            class_id = int(res[0])
-            class_val = float(res[1])
-            if thisBestId < 0 or class_val < thisBestVal:
-                thisBestId = class_id
-                thisBestVal = class_val
-            this.append((class_id, class_val))
-        else:
-            raise Exception('error on vw output, got line "' + l + '"')
-    h.close()
-
-    return predictions
 
 
 if __name__ == "__main__":
