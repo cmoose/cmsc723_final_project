@@ -80,7 +80,12 @@ def test_results():
             if answer_data[0] == '1' and count != 0:
                 x = ANSWER_MAP.get(max_answer)
                 y = ANSWER_MAP.get(answer)
-                MATRIX.itemset((x, y), MATRIX[x, y] + 1)
+
+                if y:
+                    MATRIX.itemset((x, y), MATRIX[x, y] + 1)
+                    print x-y
+                else:
+                    print answer, ' failed.'
 
                 answer_count += 1
                 max_count = 0
@@ -89,7 +94,10 @@ def test_results():
                 guess_scores = []
             count += 1
 
-    print DEV_GUESSES
+    num_correct = numpy.trace(MATRIX)
+    num_wrong = numpy.sum(numpy.sum(MATRIX, axis=0)) - num_correct
+    numpy.set_printoptions(precision=2, suppress=True, linewidth=120)
+    print num_correct / float(num_wrong+num_correct) * 100
 
 
 def f_score(truth, prediction):
