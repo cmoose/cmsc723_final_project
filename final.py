@@ -5,6 +5,7 @@ import os
 from util import *
 import re
 from enum import Enum
+from nltk.util import ngrams
 
 PKL_TRAIN = 'data/train.pkl'
 PKL_DEV = 'data/dev.pkl'
@@ -235,6 +236,11 @@ def question_features(item):
     feats = Counter()
     for a in range(len(words)):
         feats['sc_' + words[a]] += 1
+    # n_grams 0 to 4 doesn't work
+    '''for n in range(0, 4):
+        n_gram = ngrams(words, n)
+        for gram in n_gram:
+            feats['n%s_%s' % (str(n), gram)] += 1'''
     feats[category] = 1
     feats[sentence_pos] = 1
 
