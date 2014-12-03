@@ -4,7 +4,7 @@ import pickle
 import os
 from util import *
 import re
-
+from enum import Enum
 
 PKL_TRAIN = 'data/train.pkl'
 PKL_DEV = 'data/dev.pkl'
@@ -13,6 +13,16 @@ VW_INPUT_TRAIN = 'vw/qa_vw.tr'
 VW_INPUT_DEV = 'vw/qa_vw.de'
 VW_MODEL = 'vw/qa_vw.model'
 vw_bin = '/usr/local/bin/vw'
+RAW_PRED = 'vw/qa_vw.de.rawpredictions'
+DEV_GUESSES = []
+DEV_ANSWERS = []
+ANSWER_LIST = []
+ANSWER_MAP = {}
+
+
+class Data(Enum):
+    train = 1
+    dev = 0
 
 
 def main():
@@ -23,13 +33,13 @@ def main():
 
     train = pickle.load(open(PKL_TRAIN, "rb"))
     dev = pickle.load(open(PKL_DEV, "rb"))
-    # answer_map = create_answer_map(train)
+    create_answer_map(train)
 
     print 'Generating Classification Data'
     # training type_data
-    generate_vw_data(train, 1, VW_INPUT_TRAIN)
+    generate_vw_data(train, Data.train, VW_INPUT_TRAIN)
     # testing type_data
-    generate_vw_data(dev, 0, VW_INPUT_DEV)
+    generate_vw_data(dev, Data.dev, VW_INPUT_DEV)
 
     print 'Training Data'
     train_vw(VW_INPUT_TRAIN, VW_MODEL, True)
@@ -37,8 +47,71 @@ def main():
     print 'Outputting Test Results'
     test_vw(VW_INPUT_DEV, VW_MODEL, True)
 
+    test_results()
     print len(train)
     print len(dev)
+
+
+def test_results():
+    MATRIX = create_matrix()
+
+    with open(RAW_PRED, 'r') as training_guesses:
+        raw_pred = training_guesses.readlines()
+
+    count = 0
+    answer_count = 0
+    max_answer = ''
+    max_count = 0
+    guess_set = []
+    guess_scores = []
+    for pred in raw_pred:
+        if pred != '\n':
+            answer_data = pred.strip().split(':')
+            guess = DEV_GUESSES[count]
+            answer = DEV_ANSWERS[answer_count]
+            guess_set.append(guess)
+            guess_scores.append(float(answer_data[1]))
+
+            # # get the best guess
+            if float(answer_data[1]) > max_count:
+                max_count = float(answer_data[1])
+                max_answer = guess
+
+            if answer_data[0] == '1' and count != 0:
+                x = ANSWER_MAP.get(max_answer)
+                y = ANSWER_MAP.get(answer)
+                MATRIX.itemset((x, y), MATRIX[x, y] + 1)
+
+                answer_count += 1
+                max_count = 0
+                max_answer = ''
+                guess_set = []
+                guess_scores = []
+            count += 1
+
+    print DEV_GUESSES
+
+
+def f_score(truth, prediction):
+    tp = 0
+    fp = 0
+    fn = 0
+    for k in range(1, len(truth)):
+        if truth[k] == 1 and prediction[k] == 1:
+            tp += 1
+        if truth[k] == -1 and prediction[k] == -1:
+            fp += 1
+        if truth[k] == -1 and prediction[k] == 1:
+            fn += 1
+    prec = tp / float(tp + fp)
+    recall = tp / float(tp + fn)
+    print('Precision')
+    print(prec)
+    print('Recall')
+    print(recall)
+    print('FSCORE')
+    print((2 * prec * recall) / (prec + recall))
+    return (2 * prec * recall) / (prec + recall)
 
 
 def load_training_data(filename):
@@ -75,15 +148,20 @@ def format_scores(data):
 
 
 def create_answer_map(data):
-    answer_map = []
     for item in data:
         for k, v in item['wiki'].items():
-            if answer_map.count(v) == 0:
-                answer_map.append(v)
+            if ANSWER_LIST.count(v) == 0:
+                ANSWER_LIST.append(v)
         for k, v in item['quanta'].items():
-            if answer_map.count(v) == 0:
-                answer_map.append(v)
-    return answer_map
+            if ANSWER_LIST.count(v) == 0:
+                ANSWER_LIST.append(v)
+    for i in range(0, len(ANSWER_LIST)):
+        ANSWER_MAP[ANSWER_LIST[i]] = i
+
+
+def create_matrix():
+    zeros = [[0 for x in range(0, len(ANSWER_LIST))] for x in range(0, len(ANSWER_LIST))]
+    return numpy.matrix(zeros)
 
 
 def generate_train_dev(data):
@@ -117,12 +195,16 @@ def answer_features(item, data_type):
     correct_answer = item['answer']
     get_labels(array_of_answers, item, 'wiki', correct_answer, data_type)
     get_labels(array_of_answers, item, 'quanta', correct_answer, data_type)
+    if data_type == Data.dev:
+        DEV_ANSWERS.append(item['answer'])
     return array_of_answers
 
 
 def get_labels(formatted_answers, item, label, correct_answer, data_type):
     for k, v in item[label].items():
         feats = Counter()
+        if data_type == Data.dev:
+            DEV_GUESSES.append(v)
         feats['a_' + v] = 1
         feats[label + '_prob'] = k
 
@@ -151,7 +233,7 @@ def question_features(item):
 
 
 # # train type = 1
-## test type = 0
+# # test type = 0
 def generate_vw_data(data, data_type, output_filename=None):
     with open(output_filename, 'w') as h:
         for item in data:
