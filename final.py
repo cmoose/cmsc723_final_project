@@ -47,12 +47,12 @@ def main():
     print 'Outputting Test Results'
     test_vw(VW_INPUT_DEV, VW_MODEL, True)
 
-    test_results()
+    test_results(len(dev))
     print len(train)
     print len(dev)
 
 
-def test_results():
+def test_results(len_dev):
     MATRIX = create_matrix()
 
     with open(RAW_PRED, 'r') as training_guesses:
@@ -60,8 +60,8 @@ def test_results():
 
     count = 0
     answer_count = 0
-    max_answer = ''
-    max_count = 0
+    min_answer = ''
+    min_count = 1000000
     guess_set = []
     guess_scores = []
     for pred in raw_pred:
@@ -73,31 +73,32 @@ def test_results():
             guess_scores.append(float(answer_data[1]))
 
             # # get the best guess
-            if float(answer_data[1]) > max_count:
-                max_count = float(answer_data[1])
-                max_answer = guess
+            if float(answer_data[1]) < min_count:
+                min_count = float(answer_data[1])
+                min_answer = guess
 
             if answer_data[0] == '1' and count != 0:
-                x = ANSWER_MAP.get(max_answer)
+                x = ANSWER_MAP.get(min_answer)
                 y = ANSWER_MAP.get(answer)
 
-                if y:
+                if x and y:
                     MATRIX.itemset((x, y), MATRIX[x, y] + 1)
-                    print x-y
                 else:
                     print answer, ' failed.'
 
                 answer_count += 1
-                max_count = 0
-                max_answer = ''
+                min_count = 0
+                min_answer = ''
                 guess_set = []
                 guess_scores = []
             count += 1
 
     num_correct = numpy.trace(MATRIX)
     num_wrong = numpy.sum(numpy.sum(MATRIX, axis=0)) - num_correct
+    print numpy.sum(numpy.sum(MATRIX, axis=0))
+    print numpy.sum(numpy.sum(MATRIX, axis=1))
     numpy.set_printoptions(precision=2, suppress=True, linewidth=120)
-    print num_correct / float(num_wrong+num_correct) * 100
+    print num_correct / float(len_dev) * 100
 
 
 def f_score(truth, prediction):
