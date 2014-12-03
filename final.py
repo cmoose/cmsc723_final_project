@@ -237,10 +237,10 @@ def question_features(item):
     for a in range(len(words)):
         feats['sc_' + words[a]] += 1
     # n_grams 0 to 4 doesn't work
-    '''for n in range(0, 4):
-        n_gram = ngrams(words, n)
-        for gram in n_gram:
-            feats['n%s_%s' % (str(n), gram)] += 1'''
+    #for n in range(2, 6):
+    #    n_gram = ngrams(words, n)
+    #    for gram in n_gram:
+    #        feats['n%s_%s' % (str(n), repr(gram[0]))] += 1
     feats[category] = 1
     feats[sentence_pos] = 1
 
