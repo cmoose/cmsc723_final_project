@@ -16,6 +16,7 @@ VW_INPUT_DEV = 'vw/qa_vw.de'
 VW_MODEL = 'vw/qa_vw.model'
 vw_bin = '/usr/local/bin/vw'
 RAW_PRED = 'vw/qa_vw.de.rawpredictions'
+SUBMISSION = 'data/submission.csv'
 DEV_GUESSES = []
 DEV_ANSWERS = []
 ANSWER_LIST = []
@@ -63,12 +64,10 @@ def main(testing=False):
         dev_results(len(dev))
     else:
         output_submission()
-    print len(train)
-    print len(dev)
 
 
 def dev_results(len_dev):
-    MATRIX = create_matrix()
+    matrix = create_matrix()
 
     with open(RAW_PRED, 'r') as training_guesses:
         raw_pred = training_guesses.readlines()
@@ -76,7 +75,7 @@ def dev_results(len_dev):
     count = 0
     answer_count = 0
     max_answer = ''
-    max_count = sys.maxint
+    max_count = 0
     guess_set = []
     guess_scores = []
     for pred in raw_pred:
@@ -88,39 +87,40 @@ def dev_results(len_dev):
             guess_scores.append(float(answer_data[1]))
 
             # # get the best guess
-            if float(answer_data[1]) < max_count:
+            if float(answer_data[1]) > max_count:
                 max_count = float(answer_data[1])
                 max_answer = guess
-
-            if count == 0:
-                with open('data/submission.csv', 'w') as answers:
-                    answers.write('Question ID,Answer\n')
 
             if answer_data[0] == '1' and count != 0:
                 x = ANSWER_MAP.get(max_answer)
                 y = ANSWER_MAP.get(answer)
 
                 if x and y:
-                    MATRIX.itemset((x, y), MATRIX[x, y] + 1)
+                    matrix.itemset((x, y), matrix[x, y] + 1)
                 else:
                     print answer, ' failed.'
 
-                with open('data/submission.csv', 'a') as answers:
-                    answers.write(QUESTION_LIST[answer_count] + ',' + answer + '\n')
-
                 answer_count += 1
-                max_count = sys.maxint
+                max_count = 0
                 max_answer = ''
                 guess_set = []
                 guess_scores = []
             count += 1
 
-    num_correct = numpy.trace(MATRIX)
-    num_wrong = numpy.sum(numpy.sum(MATRIX, axis=0)) - num_correct
-    print numpy.sum(numpy.sum(MATRIX, axis=0))
-    print numpy.sum(numpy.sum(MATRIX, axis=1))
+    x = ANSWER_MAP.get(max_answer)
+    y = ANSWER_MAP.get(answer)
+
+    if x and y:
+        matrix.itemset((x, y), matrix[x, y] + 1)
+    else:
+        print answer, ' failed.'
+
+    num_correct = numpy.trace(matrix)
+    num_wrong = numpy.sum(numpy.sum(matrix, axis=0)) - num_correct
+    #print numpy.sum(numpy.sum(matrix, axis=0))
+    #print numpy.sum(numpy.sum(matrix, axis=1))
     numpy.set_printoptions(precision=2, suppress=True, linewidth=120)
-    print num_correct / float(len_dev) * 100
+    print 'accy: '+str(num_correct / float(len_dev) * 100) + '%'
 
 
 def output_submission():
@@ -146,11 +146,11 @@ def output_submission():
                 max_answer = guess
 
             if count == 0:
-                with open('data/submission.csv', 'w') as answers:
+                with open(SUBMISSION, 'w') as answers:
                     answers.write('Question ID,Answer\n')
 
             if answer_data[0] == '1' and count != 0:
-                with open('data/submission.csv', 'a') as answers:
+                with open(SUBMISSION, 'a') as answers:
                     answers.write(QUESTION_LIST[answer_count] + ',' + max_answer + '\n')
 
                 answer_count += 1
@@ -159,6 +159,9 @@ def output_submission():
                 guess_set = []
                 guess_scores = []
             count += 1
+
+    with open(SUBMISSION, 'a') as answers:
+        answers.write(QUESTION_LIST[answer_count] + ',' + max_answer + '\n')
 
 
 def f_score(truth, prediction):
@@ -324,7 +327,7 @@ def question_features(item):
     for a in range(len(words)):
         feats['sc_' + words[a]] += 1
     # n_grams 0 to 4 doesn't work
-    #for n in range(2, 6):
+    # for n in range(2, 6):
     #    n_gram = ngrams(words, n)
     #    for gram in n_gram:
     #        feats['n%s_%s' % (str(n), repr(gram[0]))] += 1
