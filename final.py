@@ -30,10 +30,10 @@ class Data(Enum):
     test = 2
 
 
-def main(testing=False):
+def main(regenerate=False, testing=False):
     # answer_map = [] #Index is the map
     if not testing:
-        if (not os.path.isfile(PKL_TRAIN)) | (not os.path.isfile(PKL_DEV)):
+        if (not os.path.isfile(PKL_TRAIN)) | (not os.path.isfile(PKL_DEV) | regenerate):
             train = load_training_data(TRAIN)
             generate_train_dev(train)
         train = pickle.load(open(PKL_TRAIN, "rb"))
@@ -271,7 +271,10 @@ def set_dev_data(data):
         # we don't want to allow duplicate questions,
         # here we select the first object for the question,
         # in this case it gives us the easiest to predict test set
-        selected_data.append(item[len(item) - 1])
+        try:
+            selected_data.append(item[1])
+        except:
+            selected_data.append(item[0])
     numpy.random.shuffle(selected_data)
     split = int(len(selected_data) * .80)
     train = selected_data[:split]
@@ -319,20 +322,25 @@ def get_labels(formatted_answers, item, label, data_type):
 
 
 def question_features(item):
+    feats = Counter()
     category = 'cat_' + item['category']  # shared feature - category
     sentence_pos = 'sent_' + item['sentence_pos']  # sentence position
-    words = item['text'].split()  # question text divided into words
-
-    feats = Counter()
-    for a in range(len(words)):
-        feats['sc_' + words[a]] += 1
-    # n_grams 0 to 4 doesn't work
-    # for n in range(2, 6):
-    #    n_gram = ngrams(words, n)
-    #    for gram in n_gram:
-    #        feats['n%s_%s' % (str(n), repr(gram[0]))] += 1
     feats[category] = 1
     feats[sentence_pos] = 1
+
+    sentences = item['text'].split('.')
+    for sentence in sentences:
+        words = sentence.split()  # question text divided into words
+
+
+        for a in range(len(words)):
+            feats['sc_' + words[a]] += 1
+        #n_grams 0 to 4 doesn't work
+        for n in range(2, 4):
+            n_gram = ngrams(words, n)
+            for gram in n_gram:
+                feats['n%s_%s' % (str(n), repr(gram[0]))] += 1
+
 
     return feats
 
