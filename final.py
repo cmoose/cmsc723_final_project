@@ -5,7 +5,7 @@ import os
 from util import *
 import re
 from enum import Enum
-from nltk.util import ngrams
+import nltk
 
 PKL_TRAIN = 'data/train.pkl'
 PKL_DEV = 'data/dev.pkl'
@@ -117,10 +117,10 @@ def dev_results(len_dev):
 
     num_correct = numpy.trace(matrix)
     num_wrong = numpy.sum(numpy.sum(matrix, axis=0)) - num_correct
-    #print numpy.sum(numpy.sum(matrix, axis=0))
+    # print numpy.sum(numpy.sum(matrix, axis=0))
     #print numpy.sum(numpy.sum(matrix, axis=1))
     numpy.set_printoptions(precision=2, suppress=True, linewidth=120)
-    print 'accy: '+str(num_correct / float(len_dev) * 100) + '%'
+    print 'accy: ' + str(num_correct / float(len_dev) * 100) + '%'
 
 
 def output_submission():
@@ -330,17 +330,22 @@ def question_features(item):
 
     sentences = item['text'].split('.')
     for sentence in sentences:
-        words = sentence.split()  # question text divided into words
+        tokens = nltk.word_tokenize(sentence)
 
+        # POS
+        tagged_tokens = nltk.pos_tag(tokens)
+        for a in range(len(tagged_tokens)):
+            feats['sc_' + tagged_tokens[a][0] + '_' + tagged_tokens[a][1]] += 1
 
-        for a in range(len(words)):
-            feats['sc_' + words[a]] += 1
-        #n_grams 0 to 4 doesn't work
+        # Bag of words
+        for a in range(len(tokens)):
+            feats['sc_' + tokens[a]] += 1
+
+        # n_gram
         for n in range(2, 4):
-            n_gram = ngrams(words, n)
+            n_gram = nltk.ngrams(tokens, n)
             for gram in n_gram:
                 feats['n%s_%s' % (str(n), repr(gram[0]))] += 1
-
 
     return feats
 
