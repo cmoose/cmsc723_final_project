@@ -30,7 +30,7 @@ class Data(Enum):
     test = 2
 
 
-def main(regenerate=False, testing=False):
+def main(regenerate=False, testing=True):
     # answer_map = [] #Index is the map
     if not testing:
         if (not os.path.isfile(PKL_TRAIN)) or (not os.path.isfile(PKL_DEV) or regenerate):
@@ -271,10 +271,7 @@ def set_dev_data(data):
         # we don't want to allow duplicate questions,
         # here we select the first object for the question,
         # in this case it gives us the easiest to predict test set
-        try:
-            selected_data.append(item[1])
-        except:
-            selected_data.append(item[0])
+        selected_data.append(item[len(item)-1])
     numpy.random.shuffle(selected_data)
     split = int(len(selected_data) * .80)
     train = selected_data[:split]
@@ -296,11 +293,28 @@ def full_data(data, mangle=False):
 # # type test = 0
 def answer_features(item, data_type):
     array_of_answers = []
-    get_labels(array_of_answers, item, 'wiki', data_type)
-    get_labels(array_of_answers, item, 'quanta', data_type)
+    if data_type == Data.test or data_type == Data.dev:
+        get_best_label(array_of_answers, item, 'wiki', data_type)
+        get_best_label(array_of_answers, item, 'quanta', data_type)
+    else:
+        get_labels(array_of_answers, item, 'wiki', data_type)
+        get_labels(array_of_answers, item, 'quanta', data_type)
+
     if data_type == Data.dev:
         DEV_ANSWERS.append(item['answer'])
     return array_of_answers
+
+
+def get_best_label(formatted_answers, item, label, data_type):
+    import operator
+    feats = Counter()
+    max_value = max(item[label].iteritems(), key=operator.itemgetter(0))[0]
+    feats['a_' + item[label][max_value]] = 1
+    feats[label + '_prob'] = max_value
+    new_answer = (1, feats, {})
+    formatted_answers.append(new_answer)
+    DEV_GUESSES.append(item[label][max_value])
+    return formatted_answers
 
 
 def get_labels(formatted_answers, item, label, data_type):
