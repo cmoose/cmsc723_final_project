@@ -30,7 +30,7 @@ class Data(Enum):
     test = 2
 
 
-def main(regenerate=False, testing=True):
+def main(regenerate=False, testing=False):
     # answer_map = [] #Index is the map
     if not testing:
         if (not os.path.isfile(PKL_TRAIN)) or (not os.path.isfile(PKL_DEV) or regenerate):
@@ -347,19 +347,19 @@ def question_features(item):
         tokens = nltk.word_tokenize(sentence)
 
         # POS
-        #tagged_tokens = nltk.pos_tag(tokens)
-        #for a in range(len(tagged_tokens)):
-        #    feats['sc_' + tagged_tokens[a][0] + '_' + tagged_tokens[a][1]] += 1
+        tagged_tokens = nltk.pos_tag(tokens)
+        for a in range(len(tagged_tokens)):
+            feats['sc_' + tagged_tokens[a][0] + '_' + tagged_tokens[a][1]] += 1
 
         # Bag of words
         for a in range(len(tokens)):
             feats['sc_' + tokens[a]] += 1
 
         # n_gram
-        #for n in range(2, 4):
-        #    n_gram = nltk.ngrams(tokens, n)
-        #    for gram in n_gram:
-        #        feats['n%s_%s' % (str(n), repr(gram[0]))] += 1
+        for n in range(2, 4):
+            n_gram = nltk.ngrams(tokens, n)
+            for gram in n_gram:
+                feats['n%s_%s' % (str(n), repr(gram[0]))] += 1
 
     return feats
 
