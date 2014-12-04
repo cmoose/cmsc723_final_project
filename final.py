@@ -10,6 +10,7 @@ from nltk.util import ngrams
 PKL_TRAIN = 'data/train.pkl'
 PKL_DEV = 'data/dev.pkl'
 TRAIN = 'data/train.csv'
+TEST = 'data/test.csv'
 VW_INPUT_TRAIN = 'vw/qa_vw.tr'
 VW_INPUT_DEV = 'vw/qa_vw.de'
 VW_MODEL = 'vw/qa_vw.model'
@@ -19,28 +20,38 @@ DEV_GUESSES = []
 DEV_ANSWERS = []
 ANSWER_LIST = []
 ANSWER_MAP = {}
+QUESTION_LIST = []
 
 
 class Data(Enum):
-    train = 1
-    dev = 0
+    train = 0
+    dev = 1
+    test = 2
 
 
-def main():
+def main(testing=True):
     # answer_map = [] #Index is the map
-    if (not os.path.isfile(PKL_TRAIN)) | (not os.path.isfile(PKL_DEV)):
-        train = load_training_data(TRAIN)
-        generate_train_dev(train)
+    if not testing:
+        if (not os.path.isfile(PKL_TRAIN)) | (not os.path.isfile(PKL_DEV)):
+            train = load_training_data(TRAIN)
+            generate_train_dev(train)
+        train = pickle.load(open(PKL_TRAIN, "rb"))
+        dev = pickle.load(open(PKL_DEV, "rb"))
+    else:
+        train = full_data(load_training_data(TRAIN), True)
+        dev = full_data(load_testing_data(TEST), False)
 
-    train = pickle.load(open(PKL_TRAIN, "rb"))
-    dev = pickle.load(open(PKL_DEV, "rb"))
     create_answer_map(train)
 
     print 'Generating Classification Data'
     # training type_data
     generate_vw_data(train, Data.train, VW_INPUT_TRAIN)
+
     # testing type_data
-    generate_vw_data(dev, Data.dev, VW_INPUT_DEV)
+    if not testing:
+        generate_vw_data(dev, Data.dev, VW_INPUT_DEV)
+    else:
+        generate_vw_data(dev, Data.test, VW_INPUT_DEV)
 
     print 'Training Data'
     train_vw(VW_INPUT_TRAIN, VW_MODEL, True)
@@ -48,12 +59,15 @@ def main():
     print 'Outputting Test Results'
     test_vw(VW_INPUT_DEV, VW_MODEL, True)
 
-    test_results(len(dev))
+    if not testing:
+        dev_results(len(dev))
+    else:
+        output_submission()
     print len(train)
     print len(dev)
 
 
-def test_results(len_dev):
+def dev_results(len_dev):
     MATRIX = create_matrix()
 
     with open(RAW_PRED, 'r') as training_guesses:
@@ -62,7 +76,7 @@ def test_results(len_dev):
     count = 0
     answer_count = 0
     min_answer = ''
-    min_count = 1000000
+    min_count = sys.maxint
     guess_set = []
     guess_scores = []
     for pred in raw_pred:
@@ -78,6 +92,10 @@ def test_results(len_dev):
                 min_count = float(answer_data[1])
                 min_answer = guess
 
+            if count == 0:
+                with open('data/submission.csv', 'w') as answers:
+                    answers.write('Question ID,Answer\n')
+
             if answer_data[0] == '1' and count != 0:
                 x = ANSWER_MAP.get(min_answer)
                 y = ANSWER_MAP.get(answer)
@@ -87,8 +105,11 @@ def test_results(len_dev):
                 else:
                     print answer, ' failed.'
 
+                with open('data/submission.csv', 'a') as answers:
+                    answers.write(QUESTION_LIST[answer_count] + ',' + answer + '\n')
+
                 answer_count += 1
-                min_count = 0
+                min_count = sys.maxint
                 min_answer = ''
                 guess_set = []
                 guess_scores = []
@@ -100,6 +121,45 @@ def test_results(len_dev):
     print numpy.sum(numpy.sum(MATRIX, axis=1))
     numpy.set_printoptions(precision=2, suppress=True, linewidth=120)
     print num_correct / float(len_dev) * 100
+
+
+def output_submission():
+
+    with open(RAW_PRED, 'r') as training_guesses:
+        raw_pred = training_guesses.readlines()
+
+    count = 0
+    answer_count = 0
+    min_answer = ''
+    min_count = sys.maxint
+    guess_set = []
+    guess_scores = []
+    for pred in raw_pred:
+        if pred != '\n':
+            answer_data = pred.strip().split(':')
+            guess = DEV_GUESSES[count]
+            guess_set.append(guess)
+            guess_scores.append(float(answer_data[1]))
+
+            # # get the best guess
+            if float(answer_data[1]) < min_count:
+                min_count = float(answer_data[1])
+                min_answer = guess
+
+            if count == 0:
+                with open('data/submission.csv', 'w') as answers:
+                    answers.write('Question ID,Answer\n')
+
+            if answer_data[0] == '1' and count != 0:
+                with open('data/submission.csv', 'a') as answers:
+                    answers.write(QUESTION_LIST[answer_count] + ',' + min_answer + '\n')
+
+                answer_count += 1
+                min_count = sys.maxint
+                min_answer = ''
+                guess_set = []
+                guess_scores = []
+            count += 1
 
 
 def f_score(truth, prediction):
@@ -143,6 +203,27 @@ def load_training_data(filename):
                 if data.get(question_id) is None:
                     data[question_id] = []
                 data[question_id].append(new_line)
+    return data
+
+def load_testing_data(filename):
+    data = {}
+    with open(filename, 'rb') as csvfile:
+        content = csv.reader(csvfile, delimiter=',', quotechar='"')
+        for row in content:
+            question_id = row[0]
+            if question_id not in 'Question ID':
+                text = row[1]
+                quanta = format_scores(row[2].split(','))
+                sentence_pos = row[3]
+                wiki_score = format_scores(row[4].split(','))
+                category = row[5]
+                new_line = {'id': question_id, 'text': text, 'quanta': quanta,
+                            'sentence_pos': sentence_pos,
+                            'wiki': wiki_score, 'category': category}
+                if data.get(question_id) is None:
+                    data[question_id] = []
+                data[question_id].append(new_line)
+
     return data
 
 
@@ -198,28 +279,37 @@ def set_dev_data(data):
     return train, dev
 
 
+def full_data(data, mangle=False):
+    selected_data = []
+    for grouped_question in data.values():
+        for question in grouped_question:
+            selected_data.append(question)
+    if mangle:
+        numpy.random.shuffle(selected_data)
+    return selected_data
+
+
 # # type train = 1
 # # type test = 0
 def answer_features(item, data_type):
     array_of_answers = []
-    correct_answer = item['answer']
-    get_labels(array_of_answers, item, 'wiki', correct_answer, data_type)
-    get_labels(array_of_answers, item, 'quanta', correct_answer, data_type)
+    get_labels(array_of_answers, item, 'wiki', data_type)
+    get_labels(array_of_answers, item, 'quanta', data_type)
     if data_type == Data.dev:
         DEV_ANSWERS.append(item['answer'])
     return array_of_answers
 
 
-def get_labels(formatted_answers, item, label, correct_answer, data_type):
+def get_labels(formatted_answers, item, label, data_type):
     for k, v in item[label].items():
         feats = Counter()
-        if data_type == Data.dev:
+        if data_type == Data.dev or data_type == Data.test:
             DEV_GUESSES.append(v)
         feats['a_' + v] = 1
         feats[label + '_prob'] = k
 
         is_correct = 1  # False
-        if v == correct_answer and data_type:
+        if data_type == Data.dev and v == item['answer']:
             is_correct = 0
 
         # append new answer to array_of_answers
@@ -237,7 +327,7 @@ def question_features(item):
     for a in range(len(words)):
         feats['sc_' + words[a]] += 1
     # n_grams 0 to 4 doesn't work
-    #for n in range(2, 6):
+    # for n in range(2, 6):
     #    n_gram = ngrams(words, n)
     #    for gram in n_gram:
     #        feats['n%s_%s' % (str(n), repr(gram[0]))] += 1
@@ -256,6 +346,8 @@ def generate_vw_data(data, data_type, output_filename=None):
             a_feats = answer_features(item, data_type)
             example = (q_feats, a_feats)
             write_vw_example(h, example, {})
+            if data_type == Data.dev or data_type == Data.test:
+                QUESTION_LIST.append(item['id'])
 
 
 # write a vw-style example to file
