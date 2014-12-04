@@ -29,7 +29,7 @@ class Data(Enum):
     test = 2
 
 
-def main(testing=True):
+def main(testing=False):
     # answer_map = [] #Index is the map
     if not testing:
         if (not os.path.isfile(PKL_TRAIN)) | (not os.path.isfile(PKL_DEV)):
@@ -39,7 +39,7 @@ def main(testing=True):
         dev = pickle.load(open(PKL_DEV, "rb"))
     else:
         train = full_data(load_training_data(TRAIN), True)
-        dev = full_data(load_testing_data(TEST), False)
+        dev = load_testing_data(TEST)
 
     create_answer_map(train)
 
@@ -75,8 +75,8 @@ def dev_results(len_dev):
 
     count = 0
     answer_count = 0
-    min_answer = ''
-    min_count = sys.maxint
+    max_answer = ''
+    max_count = sys.maxint
     guess_set = []
     guess_scores = []
     for pred in raw_pred:
@@ -88,16 +88,16 @@ def dev_results(len_dev):
             guess_scores.append(float(answer_data[1]))
 
             # # get the best guess
-            if float(answer_data[1]) < min_count:
-                min_count = float(answer_data[1])
-                min_answer = guess
+            if float(answer_data[1]) < max_count:
+                max_count = float(answer_data[1])
+                max_answer = guess
 
             if count == 0:
                 with open('data/submission.csv', 'w') as answers:
                     answers.write('Question ID,Answer\n')
 
             if answer_data[0] == '1' and count != 0:
-                x = ANSWER_MAP.get(min_answer)
+                x = ANSWER_MAP.get(max_answer)
                 y = ANSWER_MAP.get(answer)
 
                 if x and y:
@@ -109,8 +109,8 @@ def dev_results(len_dev):
                     answers.write(QUESTION_LIST[answer_count] + ',' + answer + '\n')
 
                 answer_count += 1
-                min_count = sys.maxint
-                min_answer = ''
+                max_count = sys.maxint
+                max_answer = ''
                 guess_set = []
                 guess_scores = []
             count += 1
@@ -124,14 +124,13 @@ def dev_results(len_dev):
 
 
 def output_submission():
-
     with open(RAW_PRED, 'r') as training_guesses:
         raw_pred = training_guesses.readlines()
 
     count = 0
     answer_count = 0
-    min_answer = ''
-    min_count = sys.maxint
+    max_answer = ''
+    max_count = 0
     guess_set = []
     guess_scores = []
     for pred in raw_pred:
@@ -142,9 +141,9 @@ def output_submission():
             guess_scores.append(float(answer_data[1]))
 
             # # get the best guess
-            if float(answer_data[1]) < min_count:
-                min_count = float(answer_data[1])
-                min_answer = guess
+            if float(answer_data[1]) > max_count:
+                max_count = float(answer_data[1])
+                max_answer = guess
 
             if count == 0:
                 with open('data/submission.csv', 'w') as answers:
@@ -152,11 +151,11 @@ def output_submission():
 
             if answer_data[0] == '1' and count != 0:
                 with open('data/submission.csv', 'a') as answers:
-                    answers.write(QUESTION_LIST[answer_count] + ',' + min_answer + '\n')
+                    answers.write(QUESTION_LIST[answer_count] + ',' + max_answer + '\n')
 
                 answer_count += 1
-                min_count = sys.maxint
-                min_answer = ''
+                max_count = 0
+                max_answer = ''
                 guess_set = []
                 guess_scores = []
             count += 1
@@ -205,8 +204,9 @@ def load_training_data(filename):
                 data[question_id].append(new_line)
     return data
 
+
 def load_testing_data(filename):
-    data = {}
+    data = []
     with open(filename, 'rb') as csvfile:
         content = csv.reader(csvfile, delimiter=',', quotechar='"')
         for row in content:
@@ -220,10 +220,7 @@ def load_testing_data(filename):
                 new_line = {'id': question_id, 'text': text, 'quanta': quanta,
                             'sentence_pos': sentence_pos,
                             'wiki': wiki_score, 'category': category}
-                if data.get(question_id) is None:
-                    data[question_id] = []
-                data[question_id].append(new_line)
-
+                data.append(new_line)
     return data
 
 
@@ -327,7 +324,7 @@ def question_features(item):
     for a in range(len(words)):
         feats['sc_' + words[a]] += 1
     # n_grams 0 to 4 doesn't work
-    # for n in range(2, 6):
+    #for n in range(2, 6):
     #    n_gram = ngrams(words, n)
     #    for gram in n_gram:
     #        feats['n%s_%s' % (str(n), repr(gram[0]))] += 1
