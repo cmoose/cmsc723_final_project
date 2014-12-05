@@ -9,6 +9,7 @@ import nltk
 
 PKL_TRAIN = 'data/train.pkl'
 PKL_DEV = 'data/dev.pkl'
+PKL_STOPWORDS = 'data/stopwords.pkl'
 TRAIN = 'data/train.csv'
 TEST = 'data/test.csv'
 VW_INPUT_TRAIN = 'vw/qa_vw.tr'
@@ -22,7 +23,7 @@ DEV_ANSWERS = []
 ANSWER_LIST = []
 ANSWER_MAP = {}
 QUESTION_LIST = []
-
+STOPWORDS = 'Stopwords.txt'
 
 class Data(Enum):
     train = 0
@@ -335,6 +336,18 @@ def get_labels(formatted_answers, item, label, data_type):
     return formatted_answers
 
 
+def build_stopwords():
+    stopwords = []
+    if not os.path.isfile(PKL_STOPWORDS):
+        fh = open(STOPWORDS)
+        for line in fh.readlines():
+            stopwords.append(line.strip())
+        pickle.dump(stopwords, open(PKL_STOPWORDS, 'wb'))
+    else:
+        stopwords = pickle.load(open(PKL_STOPWORDS))
+    return stopwords
+
+
 def question_features(item):
     feats = Counter()
     category = 'cat_' + item['category']  # shared feature - category
@@ -342,14 +355,21 @@ def question_features(item):
     feats[category] = 1
     feats[sentence_pos] = 1
 
+    stopwords = build_stopwords()
     sentences = nltk.sent_tokenize(item['text'])
     for sentence in sentences:
-        tokens = nltk.word_tokenize(sentence)
+        raw_tokens = nltk.word_tokenize(sentence)
 
         # POS
-        tagged_tokens = nltk.pos_tag(tokens)
-        for a in range(len(tagged_tokens)):
-            feats['sc_' + tagged_tokens[a][0] + '_' + tagged_tokens[a][1]] += 1
+        #tagged_tokens = nltk.pos_tag(raw_tokens)
+        #for a in range(len(tagged_tokens)):
+        #    feats['sc_' + tagged_tokens[a][0] + '_' + tagged_tokens[a][1]] += 1
+
+        #Stopwords
+        tokens = []
+        for token in raw_tokens:
+            if stopwords.count(token.strip()) == 0:
+                tokens.append(token.strip())
 
         # Bag of words
         for a in range(len(tokens)):
