@@ -306,12 +306,22 @@ def answer_features(item, data_type):
     return array_of_answers
 
 
-def get_best_label(formatted_answers, item, label, data_type):
+def get_best_label(formatted_answers, item, label, data_type, normalize=True):
     import operator
     feats = Counter()
     max_value = max(item[label].iteritems(), key=operator.itemgetter(0))[0]
     feats['a_' + item[label][max_value]] = 1
-    feats[label + '_prob'] = max_value
+
+    if normalize == True:
+        wiki_max_prob = 141.312125
+        quanta_max_prob = 0.933823174089
+        if label == 'wiki':
+            feats[label + '_prob'] = max_value / wiki_max_prob
+        else:
+            feats[label + '_prob'] = max_value / quanta_max_prob
+    else:
+        feats[label + '_prob'] = max_value
+
     new_answer = (1, feats, {})
     formatted_answers.append(new_answer)
     DEV_GUESSES.append(item[label][max_value])
@@ -366,20 +376,20 @@ def question_features(item):
         #    feats['sc_' + tagged_tokens[a][0] + '_' + tagged_tokens[a][1]] += 1
 
         #Stopwords
-        tokens = []
-        for token in raw_tokens:
-            if stopwords.count(token.strip()) == 0:
-                tokens.append(token.strip())
+        #tokens = []
+        #for token in raw_tokens:
+        #    if stopwords.count(token.strip()) == 0:
+        #        tokens.append(token.strip())
 
         # Bag of words
-        for a in range(len(tokens)):
-            feats['sc_' + tokens[a]] += 1
+        #for a in range(len(tokens)):
+        #    feats['sc_' + tokens[a]] += 1
 
         # n_gram
-        for n in range(2, 4):
-            n_gram = nltk.ngrams(tokens, n)
-            for gram in n_gram:
-                feats['n%s_%s' % (str(n), repr(gram[0]))] += 1
+        #for n in range(2, 4):
+        #    n_gram = nltk.ngrams(tokens, n)
+        #    for gram in n_gram:
+        #        feats['n%s_%s' % (str(n), repr(gram[0]))] += 1
 
     return feats
 
