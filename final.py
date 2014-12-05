@@ -5,7 +5,7 @@ import os
 from util import *
 import re
 from enum import Enum
-from nltk.util import ngrams
+import nltk
 
 PKL_TRAIN = 'data/train.pkl'
 PKL_DEV = 'data/dev.pkl'
@@ -30,10 +30,10 @@ class Data(Enum):
     test = 2
 
 
-def main(testing=False):
+def main(regenerate=False, testing=False):
     # answer_map = [] #Index is the map
     if not testing:
-        if (not os.path.isfile(PKL_TRAIN)) | (not os.path.isfile(PKL_DEV)):
+        if (not os.path.isfile(PKL_TRAIN)) or (not os.path.isfile(PKL_DEV) or regenerate):
             train = load_training_data(TRAIN)
             generate_train_dev(train)
         train = pickle.load(open(PKL_TRAIN, "rb"))
@@ -117,10 +117,10 @@ def dev_results(len_dev):
 
     num_correct = numpy.trace(matrix)
     num_wrong = numpy.sum(numpy.sum(matrix, axis=0)) - num_correct
-    #print numpy.sum(numpy.sum(matrix, axis=0))
+    # print numpy.sum(numpy.sum(matrix, axis=0))
     #print numpy.sum(numpy.sum(matrix, axis=1))
     numpy.set_printoptions(precision=2, suppress=True, linewidth=120)
-    print 'accy: '+str(num_correct / float(len_dev) * 100) + '%'
+    print 'accy: ' + str(num_correct / float(len_dev) * 100) + '%'
 
 
 def output_submission():
@@ -271,7 +271,7 @@ def set_dev_data(data):
         # we don't want to allow duplicate questions,
         # here we select the first object for the question,
         # in this case it gives us the easiest to predict test set
-        selected_data.append(item[len(item) - 1])
+        selected_data.append(item[len(item)-1])
     numpy.random.shuffle(selected_data)
     split = int(len(selected_data) * .80)
     train = selected_data[:split]
@@ -293,11 +293,28 @@ def full_data(data, mangle=False):
 # # type test = 0
 def answer_features(item, data_type):
     array_of_answers = []
-    get_labels(array_of_answers, item, 'wiki', data_type)
-    get_labels(array_of_answers, item, 'quanta', data_type)
+    if data_type == Data.test or data_type == Data.dev:
+        get_best_label(array_of_answers, item, 'wiki', data_type)
+        get_best_label(array_of_answers, item, 'quanta', data_type)
+    else:
+        get_labels(array_of_answers, item, 'wiki', data_type)
+        get_labels(array_of_answers, item, 'quanta', data_type)
+
     if data_type == Data.dev:
         DEV_ANSWERS.append(item['answer'])
     return array_of_answers
+
+
+def get_best_label(formatted_answers, item, label, data_type):
+    import operator
+    feats = Counter()
+    max_value = max(item[label].iteritems(), key=operator.itemgetter(0))[0]
+    feats['a_' + item[label][max_value]] = 1
+    feats[label + '_prob'] = max_value
+    new_answer = (1, feats, {})
+    formatted_answers.append(new_answer)
+    DEV_GUESSES.append(item[label][max_value])
+    return formatted_answers
 
 
 def get_labels(formatted_answers, item, label, data_type):
@@ -319,20 +336,30 @@ def get_labels(formatted_answers, item, label, data_type):
 
 
 def question_features(item):
+    feats = Counter()
     category = 'cat_' + item['category']  # shared feature - category
     sentence_pos = 'sent_' + item['sentence_pos']  # sentence position
-    words = item['text'].split()  # question text divided into words
-
-    feats = Counter()
-    for a in range(len(words)):
-        feats['sc_' + words[a]] += 1
-    # n_grams 0 to 4 doesn't work
-    # for n in range(2, 6):
-    #    n_gram = ngrams(words, n)
-    #    for gram in n_gram:
-    #        feats['n%s_%s' % (str(n), repr(gram[0]))] += 1
     feats[category] = 1
     feats[sentence_pos] = 1
+
+    sentences = nltk.sent_tokenize(item['text'])
+    for sentence in sentences:
+        tokens = nltk.word_tokenize(sentence)
+
+        # POS
+        tagged_tokens = nltk.pos_tag(tokens)
+        for a in range(len(tagged_tokens)):
+            feats['sc_' + tagged_tokens[a][0] + '_' + tagged_tokens[a][1]] += 1
+
+        # Bag of words
+        for a in range(len(tokens)):
+            feats['sc_' + tokens[a]] += 1
+
+        # n_gram
+        for n in range(2, 4):
+            n_gram = nltk.ngrams(tokens, n)
+            for gram in n_gram:
+                feats['n%s_%s' % (str(n), repr(gram[0]))] += 1
 
     return feats
 
