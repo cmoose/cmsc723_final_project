@@ -24,6 +24,8 @@ ANSWER_LIST = []
 ANSWER_MAP = {}
 QUESTION_LIST = []
 STOPWORDS = 'Stopwords.txt'
+_question_mappings = {} #Keeps track of vw rowid -> [question ID,actual answer]
+_qa_mappings = {}
 
 class Data(Enum):
     train = 0
@@ -31,9 +33,9 @@ class Data(Enum):
     test = 2
 
 
-def main(regenerate=False, testing=False):
+def main(regenerate=False, submission=False):
     # answer_map = [] #Index is the map
-    if not testing:
+    if not submission:
         if (not os.path.isfile(PKL_TRAIN)) or (not os.path.isfile(PKL_DEV) or regenerate):
             train = load_training_data(TRAIN)
             generate_train_dev(train)
@@ -50,7 +52,7 @@ def main(regenerate=False, testing=False):
     generate_vw_data(train, Data.train, VW_INPUT_TRAIN)
 
     # testing type_data
-    if not testing:
+    if not submission:
         generate_vw_data(dev, Data.dev, VW_INPUT_DEV)
     else:
         generate_vw_data(dev, Data.test, VW_INPUT_DEV)
@@ -61,12 +63,57 @@ def main(regenerate=False, testing=False):
     print 'Outputting Test Results'
     test_vw(VW_INPUT_DEV, VW_MODEL, True)
 
-    if not testing:
+    if not submission:
+        predictions = compile_predictions()
+        calc_score(predictions)
+        exit()
         dev_results(len(dev))
     else:
         output_submission()
 
 
+def calc_score(pred):
+    total_qs = len(pred)
+    num_correct = 0
+    for p in pred:
+        if p['answer'] == ['pred_ans']:
+            num_correct+=1
+    print num_correct
+    print 'accy: ' + str(num_correct / float(total_qs) * 100) + '%'
+
+
+def compile_predictions():
+    with open(RAW_PRED, 'r') as training_guesses:
+        raw_pred = training_guesses.readlines()
+    q_row = 0
+    q_stack = []
+    predictions = [] 
+    for line in raw_pred:
+        if line != '\n':
+            q_stack.append(line)
+        else:
+            #Reached a break
+            best_raw_score = -100
+            best_row = -1
+            while len(q_stack)>0:
+                #process question
+                raw_ans = q_stack.pop(0)
+                a_row = int(raw_ans.split(':')[0].strip())
+                a_score = float(raw_ans.split(':')[1].strip())
+                if a_score > best_raw_score:
+                    best_raw_score = a_score
+                    best_row = a_row - 1 #I think this is right, 
+            q_info = _question_mappings[q_row]
+            pred_ans = _qa_mappings[q_row][best_row]
+            pred = {}
+            pred['id'] = q_info[0]
+            pred['answer'] = q_info[1]
+            pred['pred_ans'] = pred_ans
+            predictions.append(pred)
+            q_row+=1
+    return predictions
+
+#input: num of questions in test set
 def dev_results(len_dev):
     matrix = create_matrix()
 
@@ -108,8 +155,8 @@ def dev_results(len_dev):
                 guess_scores = []
             count += 1
 
-    x = ANSWER_MAP.get(max_answer)
-    y = ANSWER_MAP.get(answer)
+    x = ANSWER_MAP.get(max_answer) #guess
+    y = ANSWER_MAP.get(answer) #answer
 
     if x and y:
         matrix.itemset((x, y), matrix[x, y] + 1)
@@ -294,12 +341,8 @@ def full_data(data, mangle=False):
 # # type test = 0
 def answer_features(item, data_type):
     array_of_answers = []
-    if data_type == Data.test or data_type == Data.dev:
-        get_best_label(array_of_answers, item, 'wiki', data_type)
-        get_best_label(array_of_answers, item, 'quanta', data_type)
-    else:
-        get_labels(array_of_answers, item, 'wiki', data_type)
-        get_labels(array_of_answers, item, 'quanta', data_type)
+    get_labels(array_of_answers, item, 'wiki', data_type)
+    get_labels(array_of_answers, item, 'quanta', data_type)
 
     if data_type == Data.dev:
         DEV_ANSWERS.append(item['answer'])
@@ -337,8 +380,9 @@ def get_labels(formatted_answers, item, label, data_type):
         feats[label + '_prob'] = k
 
         is_correct = 1  # False
-        if data_type == Data.dev and v == item['answer']:
-            is_correct = 0
+        if data_type == Data.train:
+            if v == item['answer']:
+                is_correct = 0
 
         # append new answer to array_of_answers
         new_answer = (is_correct, feats, {})
@@ -362,6 +406,8 @@ def question_features(item):
     feats = Counter()
     category = 'cat_' + item['category']  # shared feature - category
     sentence_pos = 'sent_' + item['sentence_pos']  # sentence position
+    q_id = 'id_' + item['id']
+    feats[q_id] = 1
     feats[category] = 1
     feats[sentence_pos] = 1
 
@@ -382,8 +428,8 @@ def question_features(item):
         #        tokens.append(token.strip())
 
         # Bag of words
-        #for a in range(len(tokens)):
-        #    feats['sc_' + tokens[a]] += 1
+        for a in range(len(raw_tokens)):
+            feats['sc_' + raw_tokens[a]] += 1
 
         # n_gram
         #for n in range(2, 4):
@@ -398,17 +444,26 @@ def question_features(item):
 # # test type = 0
 def generate_vw_data(data, data_type, output_filename=None):
     with open(output_filename, 'w') as h:
+        q_vw_rowid = 0 #rowid of question in vw, needed to match up output
         for item in data:
+            if data_type == Data.dev or data_type == Data.test:
+                _qa_mappings[q_vw_rowid] = {}
+                _question_mappings[q_vw_rowid] = [item['id'], item['answer']]
             q_feats = question_features(item)
             a_feats = answer_features(item, data_type)
             example = (q_feats, a_feats)
-            write_vw_example(h, example, {})
+            write_vw_example(h, example, data_type, q_vw_rowid, {})
             if data_type == Data.dev or data_type == Data.test:
                 QUESTION_LIST.append(item['id'])
+            q_vw_rowid+=1
 
 
 # write a vw-style example to file
-def write_vw_example(h, example, feature_set_tracker=None):
+def write_vw_example(h, example, data_type, q_vw_rowid, feature_set_tracker=None):
+    def get_article(tgt):
+        for f,v in tgt.items():
+            if re.search("^a_", f):
+                return f[2:]
     def sanitize_feature(f):
         return re.sub(':', '_COLON_',
                       re.sub('\|', '_PIPE_',
@@ -437,6 +492,12 @@ def write_vw_example(h, example, feature_set_tracker=None):
         h.write('\n')
     for i in range(len(trans)):
         (cost, tgt, pair) = trans[i]
+        
+        #Hack to get vw row information we need
+        if data_type != Data.train:
+            article = get_article(tgt)
+            _qa_mappings[q_vw_rowid][i] = article
+        
         h.write(str(i + 1))
         h.write(':')
         h.write(str(cost))
