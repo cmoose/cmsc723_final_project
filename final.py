@@ -184,13 +184,6 @@ def create_answer_map(data):
         for k, v in item['quanta'].items():
             if ANSWER_LIST.count(v) == 0:
                 ANSWER_LIST.append(v)
-    for i in range(0, len(ANSWER_LIST)):
-        ANSWER_MAP[ANSWER_LIST[i]] = i
-
-
-def create_matrix():
-    zeros = [[0 for x in range(0, len(ANSWER_LIST))] for x in range(0, len(ANSWER_LIST))]
-    return numpy.matrix(zeros)
 
 
 def generate_train_dev(data):
@@ -243,7 +236,7 @@ def answer_features(item, data_type):
     return array_of_answers
 
 
-def get_best_label(formatted_answers, item, label, data_type, normalize=True):
+def get_best_label(formatted_answers, item, label, data_type, normalize=False):
     import operator
 
     feats = Counter()
@@ -266,7 +259,7 @@ def get_best_label(formatted_answers, item, label, data_type, normalize=True):
     return formatted_answers
 
 
-def get_labels(formatted_answers, item, label, data_type, normalize=True):
+def get_labels(formatted_answers, item, label, data_type, normalize=False):
     for k, v in item[label].items():
         feats = Counter()
         if data_type == Data.dev or data_type == Data.test:
@@ -315,12 +308,7 @@ def question_features(item):
     stopwords = build_stopwords()
     sentences = nltk.sent_tokenize(item['text'])
     for sentence in sentences:
-        raw_tokens = nltk.word_tokenize(sentence)
-
-        # POS
-        # tagged_tokens = nltk.pos_tag(raw_tokens)
-        # for a in range(len(tagged_tokens)):
-        #    feats['sc_' + tagged_tokens[a][0] + '_' + tagged_tokens[a][1]] += 1
+        tokens = nltk.word_tokenize(sentence)
 
         #Stopwords
         #tokens = []
@@ -328,15 +316,20 @@ def question_features(item):
         #    if stopwords.count(token.strip()) == 0:
         #        tokens.append(token.strip())
 
+        # POS
+        tagged_tokens = nltk.pos_tag(tokens)
+        for a in range(len(tagged_tokens)):
+            feats['scp_' + tagged_tokens[a][0] + '_' + tagged_tokens[a][1]] += 1
+
         # Bag of words
-        #for a in range(len(tokens)):
-        #    feats['sc_' + tokens[a]] += 1
+        for a in range(len(tokens)):
+            feats['sc_' + tokens[a]] += 1
 
         # n_gram
-        #for n in range(2, 4):
-        #    n_gram = nltk.ngrams(tokens, n)
-        #    for gram in n_gram:
-        #        feats['n%s_%s' % (str(n), repr(gram[0]))] += 1
+        for n in range(2, 4):
+            n_gram = nltk.ngrams(tokens, n)
+            for gram in n_gram:
+                feats['n%s_%s' % (str(n), repr(gram[0]))] += 1
 
     return feats
 
