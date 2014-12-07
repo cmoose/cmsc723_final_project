@@ -2,6 +2,7 @@ import csv
 import numpy
 import pickle
 import os
+from sys import maxint
 from util import *
 import re
 from enum import Enum
@@ -24,6 +25,7 @@ ANSWER_LIST = []
 ANSWER_MAP = {}
 QUESTION_LIST = []
 STOPWORDS = 'Stopwords.txt'
+
 
 class Data(Enum):
     train = 0
@@ -67,61 +69,50 @@ def main(regenerate=False, testing=False):
         output_submission()
 
 
-def dev_results(len_dev):
-    matrix = create_matrix()
-
+def dev_results(num_questions):
     with open(RAW_PRED, 'r') as training_guesses:
-        raw_pred = training_guesses.readlines()
+        prediction_scores = training_guesses.readlines()
 
+    # separate predictions into list entries.
     count = 0
-    answer_count = 0
-    max_answer = ''
-    max_count = 0
-    guess_set = []
-    guess_scores = []
-    for pred in raw_pred:
-        if pred != '\n':
-            answer_data = pred.strip().split(':')
-            guess = DEV_GUESSES[count]
-            answer = DEV_ANSWERS[answer_count]
-            guess_set.append(guess)
-            guess_scores.append(float(answer_data[1]))
-
-            # # get the best guess
-            if float(answer_data[1]) > max_count:
-                max_count = float(answer_data[1])
-                max_answer = guess
-
-            if answer_data[0] == '1' and count != 0:
-                x = ANSWER_MAP.get(max_answer)
-                y = ANSWER_MAP.get(answer)
-
-                if x and y:
-                    matrix.itemset((x, y), matrix[x, y] + 1)
-                else:
-                    print answer, ' failed.'
-
-                answer_count += 1
-                max_count = 0
-                max_answer = ''
-                guess_set = []
-                guess_scores = []
+    predictions_by_question = [[] for x in range(0, num_questions)]
+    for prediction_score in prediction_scores:
+        if prediction_score != '\n':
+            predictions_by_question[count].append({'prediction_score': float(prediction_score.split(':')[1].rstrip())})
+        else:
             count += 1
 
-    x = ANSWER_MAP.get(max_answer)
-    y = ANSWER_MAP.get(answer)
+    # add labels to guesses
+    count = 0
+    for question in predictions_by_question:
+        for prediction_score in question:
+            prediction_score['label'] = DEV_GUESSES[count]
+            count += 1
 
-    if x and y:
-        matrix.itemset((x, y), matrix[x, y] + 1)
-    else:
-        print answer, ' failed.'
+    # retrieve max solution
+    vpw_guess = {}
+    count = 0
+    for question in predictions_by_question:
+        max_value = -maxint
+        max_object = {}
+        for prediction in question:
+            if prediction['prediction_score'] > max_value:
+                max_value = prediction['prediction_score']
+                max_object = prediction
+            vpw_guess[count] = max_object
+        count += 1
 
-    num_correct = numpy.trace(matrix)
-    num_wrong = numpy.sum(numpy.sum(matrix, axis=0)) - num_correct
-    # print numpy.sum(numpy.sum(matrix, axis=0))
-    #print numpy.sum(numpy.sum(matrix, axis=1))
-    numpy.set_printoptions(precision=2, suppress=True, linewidth=120)
-    print 'accy: ' + str(num_correct / float(len_dev) * 100) + '%'
+    # compute accy
+    correct = 0
+    wrong = 0
+    for i in range(0, num_questions):
+        prediction = vpw_guess[i]['label']
+        if prediction == DEV_ANSWERS[i]:
+            correct += 1
+        else:
+            wrong += 1
+
+    print (correct / float(num_questions))*100, '% accuracy'
 
 
 def output_submission():
@@ -163,28 +154,6 @@ def output_submission():
 
     with open(SUBMISSION, 'a') as answers:
         answers.write(QUESTION_LIST[answer_count] + ',' + max_answer + '\n')
-
-
-def f_score(truth, prediction):
-    tp = 0
-    fp = 0
-    fn = 0
-    for k in range(1, len(truth)):
-        if truth[k] == 1 and prediction[k] == 1:
-            tp += 1
-        if truth[k] == -1 and prediction[k] == -1:
-            fp += 1
-        if truth[k] == -1 and prediction[k] == 1:
-            fn += 1
-    prec = tp / float(tp + fp)
-    recall = tp / float(tp + fn)
-    print('Precision')
-    print(prec)
-    print('Recall')
-    print(recall)
-    print('FSCORE')
-    print((2 * prec * recall) / (prec + recall))
-    return (2 * prec * recall) / (prec + recall)
 
 
 def load_training_data(filename):
@@ -272,7 +241,7 @@ def set_dev_data(data):
         # we don't want to allow duplicate questions,
         # here we select the first object for the question,
         # in this case it gives us the easiest to predict test set
-        selected_data.append(item[len(item)-1])
+        selected_data.append(item[len(item) - 1])
     numpy.random.shuffle(selected_data)
     split = int(len(selected_data) * .80)
     train = selected_data[:split]
@@ -308,6 +277,7 @@ def answer_features(item, data_type):
 
 def get_best_label(formatted_answers, item, label, data_type, normalize=True):
     import operator
+
     feats = Counter()
     max_value = max(item[label].iteritems(), key=operator.itemgetter(0))[0]
     feats['a_' + item[label][max_value]] = 1
@@ -380,8 +350,8 @@ def question_features(item):
         raw_tokens = nltk.word_tokenize(sentence)
 
         # POS
-        #tagged_tokens = nltk.pos_tag(raw_tokens)
-        #for a in range(len(tagged_tokens)):
+        # tagged_tokens = nltk.pos_tag(raw_tokens)
+        # for a in range(len(tagged_tokens)):
         #    feats['sc_' + tagged_tokens[a][0] + '_' + tagged_tokens[a][1]] += 1
 
         #Stopwords
