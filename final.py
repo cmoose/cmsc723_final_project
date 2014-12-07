@@ -314,7 +314,7 @@ def get_best_label(formatted_answers, item, label, data_type, normalize=True):
 
     if normalize == True:
         wiki_max_prob = 141.312125
-        quanta_max_prob = 0.933823174089
+        quanta_max_prob = 0.934937484
         if label == 'wiki':
             feats[label + '_prob'] = max_value / wiki_max_prob
         else:
@@ -328,16 +328,25 @@ def get_best_label(formatted_answers, item, label, data_type, normalize=True):
     return formatted_answers
 
 
-def get_labels(formatted_answers, item, label, data_type):
+def get_labels(formatted_answers, item, label, data_type, normalize=True):
     for k, v in item[label].items():
         feats = Counter()
         if data_type == Data.dev or data_type == Data.test:
             DEV_GUESSES.append(v)
         feats['a_' + v] = 1
-        feats[label + '_prob'] = k
+
+        if normalize == True:
+            wiki_max_prob = 305.988897
+            quanta_max_prob = 0.934937484
+            if label == 'wiki':
+                feats[label + '_prob'] = k / wiki_max_prob
+            else:
+                feats[label + '_prob'] = k / quanta_max_prob
+        else:
+            feats[label + '_prob'] = k
 
         is_correct = 1  # False
-        if data_type == Data.dev and v == item['answer']:
+        if data_type == Data.train and v == item['answer']:
             is_correct = 0
 
         # append new answer to array_of_answers
