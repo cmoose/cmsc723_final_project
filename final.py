@@ -21,7 +21,6 @@ RAW_PRED = 'vw/qa_vw.de.rawpredictions'
 SUBMISSION = 'data/submission.csv'
 DEV_GUESSES = []
 DEV_ANSWERS = []
-ANSWER_LIST = []
 ANSWER_MAP = {}
 QUESTION_LIST = []
 STOPWORDS = 'Stopwords.txt'
@@ -44,8 +43,6 @@ def main(regenerate=False, testing=True):
     else:
         train = full_data(load_training_data(TRAIN), True)
         dev = load_testing_data(TEST)
-
-    create_answer_map(train)
 
     print 'Generating Classification Data'
     # training type_data
@@ -174,16 +171,6 @@ def format_scores(data):
             confidence = float(split_data[1])
             formatted_data[confidence] = answer
     return formatted_data
-
-
-def create_answer_map(data):
-    for item in data:
-        for k, v in item['wiki'].items():
-            if ANSWER_LIST.count(v) == 0:
-                ANSWER_LIST.append(v)
-        for k, v in item['quanta'].items():
-            if ANSWER_LIST.count(v) == 0:
-                ANSWER_LIST.append(v)
 
 
 def generate_train_dev(data):
