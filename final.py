@@ -33,7 +33,7 @@ class Data(Enum):
     test = 2
 
 
-def main(regenerate=False, testing=False):
+def main(regenerate=False, testing=True):
     # answer_map = [] #Index is the map
     if not testing:
         if (not os.path.isfile(PKL_TRAIN)) or (not os.path.isfile(PKL_DEV) or regenerate):
@@ -64,12 +64,12 @@ def main(regenerate=False, testing=False):
     test_vw(VW_INPUT_DEV, VW_MODEL, True)
 
     if not testing:
-        dev_results(len(dev))
+        dev_results(len(dev), Data.dev)
     else:
-        output_submission()
+        dev_results(len(dev), Data.test)
 
 
-def dev_results(num_questions):
+def dev_results(num_questions, data_type):
     with open(RAW_PRED, 'r') as training_guesses:
         prediction_scores = training_guesses.readlines()
 
@@ -102,58 +102,26 @@ def dev_results(num_questions):
             vpw_guess[count] = max_object
         count += 1
 
-    # compute accy
-    correct = 0
-    wrong = 0
-    for i in range(0, num_questions):
-        prediction = vpw_guess[i]['label']
-        if prediction == DEV_ANSWERS[i]:
-            correct += 1
-        else:
-            wrong += 1
+    if data_type == Data.dev:
+        # compute accy
+        correct = 0
+        wrong = 0
+        for i in range(0, num_questions):
+            prediction = vpw_guess[i]['label']
+            if prediction == DEV_ANSWERS[i]:
+                correct += 1
+            else:
+                wrong += 1
 
-    print (correct / float(num_questions))*100, '% accuracy'
+        print (correct / float(num_questions))*100, '% accuracy'
 
-
-def output_submission():
-    with open(RAW_PRED, 'r') as training_guesses:
-        raw_pred = training_guesses.readlines()
-
-    count = 0
-    answer_count = 0
-    max_answer = ''
-    max_count = 0
-    guess_set = []
-    guess_scores = []
-    for pred in raw_pred:
-        if pred != '\n':
-            answer_data = pred.strip().split(':')
-            guess = DEV_GUESSES[count]
-            guess_set.append(guess)
-            guess_scores.append(float(answer_data[1]))
-
-            # # get the best guess
-            if float(answer_data[1]) > max_count:
-                max_count = float(answer_data[1])
-                max_answer = guess
-
-            if count == 0:
-                with open(SUBMISSION, 'w') as answers:
-                    answers.write('Question ID,Answer\n')
-
-            if answer_data[0] == '1' and count != 0:
-                with open(SUBMISSION, 'a') as answers:
-                    answers.write(QUESTION_LIST[answer_count] + ',' + max_answer + '\n')
-
-                answer_count += 1
-                max_count = 0
-                max_answer = ''
-                guess_set = []
-                guess_scores = []
-            count += 1
-
-    with open(SUBMISSION, 'a') as answers:
-        answers.write(QUESTION_LIST[answer_count] + ',' + max_answer + '\n')
+    if data_type == Data.test:
+        with open(SUBMISSION, 'w') as answers:
+            answers.write('Question ID,Answer\n')
+        for i in range(0, num_questions):
+            with open(SUBMISSION, 'a') as answers:
+                prediction = vpw_guess[i]['label']
+                answers.write(QUESTION_LIST[i] + ',' + prediction + '\n')
 
 
 def load_training_data(filename):
