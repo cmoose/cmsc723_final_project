@@ -21,7 +21,6 @@ RAW_PRED = 'vw/qa_vw.de.rawpredictions'
 SUBMISSION = 'data/submission.csv'
 DEV_GUESSES = []
 DEV_ANSWERS = []
-ANSWER_MAP = {}
 QUESTION_LIST = []
 STOPWORDS = 'Stopwords.txt'
 
@@ -32,7 +31,7 @@ class Data(Enum):
     test = 2
 
 
-def main(regenerate=False, testing=True):
+def main(regenerate=True, testing=False):
     # answer_map = [] #Index is the map
     if not testing:
         if (not os.path.isfile(PKL_TRAIN)) or (not os.path.isfile(PKL_DEV) or regenerate):
@@ -41,7 +40,7 @@ def main(regenerate=False, testing=True):
         train = pickle.load(open(PKL_TRAIN, "rb"))
         dev = pickle.load(open(PKL_DEV, "rb"))
     else:
-        train = full_data(load_training_data(TRAIN), True)
+        train = full_data(load_training_data(TRAIN), False)
         dev = load_testing_data(TEST)
 
     print 'Generating Classification Data'
@@ -164,7 +163,8 @@ def load_testing_data(filename):
 
 def format_scores(data):
     formatted_data = {}
-    for item in data:
+    for i in range(0, 4):
+        item =data[i]
         split_data = item.split(':')
         if len(split_data) == 2:
             answer = split_data[0].strip()
