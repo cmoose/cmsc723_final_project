@@ -7,6 +7,7 @@ from util import *
 import re
 from enum import Enum
 import nltk
+import wikipedia
 
 PKL_TRAIN = 'data/train.pkl'
 PKL_DEV = 'data/dev.pkl'
@@ -24,6 +25,8 @@ DEV_ANSWERS = []
 ANSWER_MAP = {}
 QUESTION_LIST = []
 STOPWORDS = 'Stopwords.txt'
+WP_DOCS = {}
+WP_COMMA_ARTICLES = []
 
 
 class Data(Enum):
@@ -32,8 +35,10 @@ class Data(Enum):
     test = 2
 
 
-def main(regenerate=False, testing=True):
-    # answer_map = [] #Index is the map
+def main(regenerate=False, testing=False):
+    #load wikipedia data
+    load_wikipedia()
+    
     if not testing:
         if (not os.path.isfile(PKL_TRAIN)) or (not os.path.isfile(PKL_DEV) or regenerate):
             train = load_training_data(TRAIN)
@@ -48,6 +53,7 @@ def main(regenerate=False, testing=True):
     # training type_data
     generate_vw_data(train, Data.train, VW_INPUT_TRAIN)
 
+    print 'Generating dev/test data'
     # testing type_data
     if not testing:
         generate_vw_data(dev, Data.dev, VW_INPUT_DEV)
@@ -119,6 +125,13 @@ def dev_results(num_questions, data_type):
             with open(SUBMISSION, 'a') as answers:
                 prediction = vpw_guess[i]['label']
                 answers.write(QUESTION_LIST[i] + ',' + prediction + '\n')
+
+
+def load_wikipedia():
+    global WP_DOCS
+    global WP_COMMA_ARTICLES
+    WP_DOCS = wikipedia.load_pickle_files()
+    WP_COMMA_ARTICLES = wikipedia.load_comma_pickle_file()
 
 
 def load_training_data(filename):
@@ -223,13 +236,58 @@ def answer_features(item, data_type):
     return array_of_answers
 
 
-def get_best_label(formatted_answers, item, label, data_type, normalize=False):
+#input question text, get back nouns
+def get_nouns(q_text):
+    tokens = nltk.word_tokenize(q_text)
+    tagged_tokens = nltk.pos_tag(tokens)
+    noun_tokens = []
+    #Pull out all nouns from the question
+    for item in tagged_tokens:
+        if re.search("NN", item[1]):
+            noun_tokens.append(item[0])
+    return noun_tokens
+
+
+def lookup_article_title(answer):
+    for article in WP_COMMA_ARTICLES:
+        if re.search(answer, article):
+            return article
+    return None
+
+def get_wp_word_count(q_nouns, answer):
+    prefix = answer[0]
+    count = 0
+    for word in q_nouns:
+        if WP_DOCS.has_key(prefix):
+            if WP_DOCS[prefix].has_key(answer):
+                if WP_DOCS[prefix][answer].has_key(word):
+                    count+=1
+            else:
+                #missing article, return smoothing value count of 3
+                return 3
+        else:
+            #Found a truncated article title, find the real title, and lookup that
+            full_answer = lookup_article_title(answer)
+            if full_answer:
+                prefix = full_answer[0]
+                if WP_DOCS[prefix][full_answer].has_key(word):
+                    count+=1
+    return count
+
+ 
+def get_best_label(formatted_answers, item, label, data_type, normalize=True):
     import operator
 
     feats = Counter()
     max_value = max(item[label].iteritems(), key=operator.itemgetter(0))[0]
     feats['a_' + item[label][max_value]] = 1
-
+    
+    #wikipedia features
+    answer = item[label][max_value]
+    q_nouns = get_nouns(item['text'])
+    noun_word_count = get_wp_word_count(q_nouns, answer)
+    feats['wp_q_word_count'] = noun_word_count
+    
     if normalize == True:
         wiki_max_prob = 141.312125
         quanta_max_prob = 0.934937484
@@ -247,12 +305,17 @@ def get_best_label(formatted_answers, item, label, data_type, normalize=False):
 
 
 def get_labels(formatted_answers, item, label, data_type, normalize=False):
+    q_nouns = get_nouns(item['text'])
     for k, v in item[label].items():
         feats = Counter()
         if data_type == Data.dev or data_type == Data.test:
             DEV_GUESSES.append(v)
         feats['a_' + v] = 1
-
+        
+        #wikipedia feature
+        noun_word_count = get_wp_word_count(q_nouns, v)
+        feats['wp_q_word_count'] = noun_word_count
+        
         if normalize == True:
             wiki_max_prob = 305.988897
             quanta_max_prob = 0.934937484
@@ -295,28 +358,28 @@ def question_features(item):
     stopwords = build_stopwords()
     sentences = nltk.sent_tokenize(item['text'])
     for sentence in sentences:
-        tokens = nltk.word_tokenize(sentence)
+        raw_tokens = nltk.word_tokenize(sentence)
 
         #Stopwords
-        #tokens = []
-        #for token in raw_tokens:
-        #    if stopwords.count(token.strip()) == 0:
-        #        tokens.append(token.strip())
+        tokens = []
+        for token in raw_tokens:
+            if stopwords.count(token.strip()) == 0:
+                tokens.append(token.strip())
 
         # POS
-        tagged_tokens = nltk.pos_tag(tokens)
-        for a in range(len(tagged_tokens)):
-            feats['scp_' + tagged_tokens[a][0] + '_' + tagged_tokens[a][1]] += 1
+        #tagged_tokens = nltk.pos_tag(tokens)
+        #for a in range(len(tagged_tokens)):
+        #    feats['scp_' + tagged_tokens[a][0] + '_' + tagged_tokens[a][1]] += 1
 
         # Bag of words
         for a in range(len(tokens)):
             feats['sc_' + tokens[a]] += 1
 
         # n_gram
-        for n in range(2, 4):
-            n_gram = nltk.ngrams(tokens, n)
-            for gram in n_gram:
-                feats['n%s_%s' % (str(n), repr(gram[0]))] += 1
+        #for n in range(2, 4):
+        #    n_gram = nltk.ngrams(tokens, n)
+        #    for gram in n_gram:
+        #        feats['n%s_%s' % (str(n), repr(gram[0]))] += 1
 
     return feats
 
@@ -325,13 +388,16 @@ def question_features(item):
 # # test type = 0
 def generate_vw_data(data, data_type, output_filename=None):
     with open(output_filename, 'w') as h:
+        i = 1
         for item in data:
+            print 'New Question %d/%d' % (i, len(data))
             q_feats = question_features(item)
             a_feats = answer_features(item, data_type)
             example = (q_feats, a_feats)
             write_vw_example(h, example, {})
             if data_type == Data.dev or data_type == Data.test:
                 QUESTION_LIST.append(item['id'])
+            i+=1
 
 
 # write a vw-style example to file
