@@ -12,6 +12,7 @@ import wikipedia
 PKL_TRAIN = 'data/train.pkl'
 PKL_DEV = 'data/dev.pkl'
 PKL_STOPWORDS = 'data/stopwords.pkl'
+PKL_Q_NOUNS = 'data/qnouns.pkl' #Keep a list of nouns per question for perf
 TRAIN = 'data/train.csv'
 TEST = 'data/test.csv'
 VW_INPUT_TRAIN = 'vw/qa_vw.tr'
@@ -27,6 +28,7 @@ QUESTION_LIST = []
 STOPWORDS = 'Stopwords.txt'
 WP_DOCS = {}
 WP_COMMA_ARTICLES = []
+Q_NOUNS = {}
 
 
 class Data(Enum):
@@ -38,11 +40,13 @@ class Data(Enum):
 def main(regenerate=False, testing=False):
     #load wikipedia data
     load_wikipedia()
+    build_q_nouns()
     
     if not testing:
         if (not os.path.isfile(PKL_TRAIN)) or (not os.path.isfile(PKL_DEV) or regenerate):
             train = load_training_data(TRAIN)
             generate_train_dev(train)
+
         train = pickle.load(open(PKL_TRAIN, "rb"))
         dev = pickle.load(open(PKL_DEV, "rb"))
     else:
@@ -125,6 +129,34 @@ def dev_results(num_questions, data_type):
             with open(SUBMISSION, 'a') as answers:
                 prediction = vpw_guess[i]['label']
                 answers.write(QUESTION_LIST[i] + ',' + prediction + '\n')
+
+
+def build_q_nouns():
+    if (not os.path.isfile(PKL_Q_NOUNS)):
+        print "Building questions' nouns for all data"
+        pickfh = open(PKL_Q_NOUNS, 'wb')
+        questions = {} #key: q_id, values: nouns in question
+        train = full_data(load_training_data(TRAIN), True)
+        dev = load_testing_data(TEST)
+        i = 1
+        for item in train:
+            print "Getting nouns for %d/%d" % (i,len(train))
+            nouns = get_nouns(item['text'])
+            questions[item['id']] = nouns
+            i+=1
+        j = 1
+        for item in dev:
+            print "Getting nouns for %d/%d" % (j,len(dev))
+            nouns = get_nouns(item['text'])
+            questions[item['id']] = nouns
+            j+=1
+        pickle.dump(questions, pickfh)
+    load_q_nouns()
+
+
+def load_q_nouns():
+    global Q_NOUNS
+    Q_NOUNS = pickle.load(open(PKL_Q_NOUNS))
 
 
 def load_wikipedia():
@@ -248,6 +280,14 @@ def get_nouns(q_text):
     return noun_tokens
 
 
+def get_cached_nouns(q_id):
+    global Q_NOUNS
+    if len(Q_NOUNS) == 0:
+        print 'Cache is missing, rebuilding...'
+        build_q_nouns()
+    return Q_NOUNS[q_id]
+
+
 def lookup_article_title(answer):
     for article in WP_COMMA_ARTICLES:
         if re.search(answer, article):
@@ -284,7 +324,8 @@ def get_best_label(formatted_answers, item, label, data_type, normalize=True):
     
     #wikipedia features
     answer = item[label][max_value]
-    q_nouns = get_nouns(item['text'])
+    #q_nouns = get_nouns(item['text'])
+    q_nouns = get_cached_nouns(item['id'])
     noun_word_count = get_wp_word_count(q_nouns, answer)
     feats['wp_q_word_count'] = noun_word_count
     
@@ -305,7 +346,8 @@ def get_best_label(formatted_answers, item, label, data_type, normalize=True):
 
 
 def get_labels(formatted_answers, item, label, data_type, normalize=False):
-    q_nouns = get_nouns(item['text'])
+    #q_nouns = get_nouns(item['text'])
+    q_nouns = get_cached_nouns(item['id'])
     for k, v in item[label].items():
         feats = Counter()
         if data_type == Data.dev or data_type == Data.test:
@@ -390,7 +432,7 @@ def generate_vw_data(data, data_type, output_filename=None):
     with open(output_filename, 'w') as h:
         i = 1
         for item in data:
-            print 'New Question %d/%d' % (i, len(data))
+            #print 'New Question %d/%d' % (i, len(data))
             q_feats = question_features(item)
             a_feats = answer_features(item, data_type)
             example = (q_feats, a_feats)
