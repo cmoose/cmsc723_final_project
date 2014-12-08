@@ -6,6 +6,7 @@ import re
 from util import *
 
 DIR_PREFIX = './wikipedia/'
+LIST_OF_DIRS = ['p', 'g', 'w', 'a', 'l', 'd', 'other', 'z', 'c', 'b', 'j', 'n', 't', 'f', 'm', 'o', 'y', 's', 'i', 'r', 'q', 'k', 'x', 'e', 'h', 'v', 'u']
 
 #This creates a separate set of files with just the info we want
 def preprocess_articles():
@@ -43,7 +44,8 @@ def build_pickle_files():
 def load_pickle_files():
     all_docs = {}
     print 'Loading Wikipedia...'
-    for d in os.listdir(DIR_PREFIX + 'wordcount'):
+    #for d in os.listdir(DIR_PREFIX + 'wordcount'):
+    for d in LIST_OF_DIRS:
         print 'load %s articles.' % (d)
         pickfh = open(DIR_PREFIX + d + '.pkl')
         docs = pickle.load(pickfh)
