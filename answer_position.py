@@ -2,9 +2,10 @@
 import csv
 import random
 import final
+import re
 
 def create_minimal_csv(filename):
-    csvreader = csv.reader(open(filename))
+    csvreader = csv.reader(open(filename), delimiter=',', quotechar='"')
     csvwriter = csv.writer(open(filename + '.new', 'wb'))
     new_line = []
     header = ['Question ID','Question Text','QANTA Scores','Answer','Sentence Position','IR_Wiki Scores','category']
@@ -12,15 +13,21 @@ def create_minimal_csv(filename):
         q_id = line[0]
         q_text = line[1]
         q_score = line[2].split(',')[0]
+        if not re.search(":", q_score):
+            print q_score
+            continue
         q_ans = line[3]
         q_pos = line[4]
         q_wscore = line[5].split(',')[0]
+        if not re.search(":", q_wscore):
+            print q_wscore
+            continue
         q_cat = line[6]
         csvwriter.writerow([q_id, q_text, q_score, q_ans, q_pos, q_wscore, q_cat])
 
 
 def create_minimal_test_csv(filename):
-    csvreader = csv.reader(open(filename))
+    csvreader = csv.reader(open(filename), delimiter=',', quotechar='"')
     csvwriter = csv.writer(open(filename + '.new', 'wb'))
     new_line = []
     header = ['Question ID','Question Text','QANTA Scores','Sentence Position','IR_Wiki Scores','category']
@@ -28,14 +35,20 @@ def create_minimal_test_csv(filename):
         q_id = line[0]
         q_text = line[1]
         q_score = line[2].split(',')[0]
+        if not re.search(":", q_score):
+            print q_score
+            continue
         q_pos = line[3]
         q_wscore = line[4].split(',')[0]
+        if not re.search(":", q_wscore):
+            print q_wscore
+            continue
         q_cat = line[5]
         csvwriter.writerow([q_id, q_text, q_score, q_pos, q_wscore, q_cat])
 
 
 def find_ans_positions():
-    csvreader = csv.reader(open('data/train.csv'))
+    csvreader = csv.reader(open('data/train.csv'), delimiter=',', quotechar='"')
     fhw = open('data/ans_positions.csv', 'wb')
     data = []
     for line in csvreader:
