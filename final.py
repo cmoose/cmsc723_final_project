@@ -15,6 +15,8 @@ PKL_STOPWORDS = 'data/stopwords.pkl'
 PKL_Q_NOUNS = 'data/qnouns.pkl' #Keep a list of nouns per question for perf
 TRAIN = 'data/train.csv'
 TEST = 'data/test.csv'
+TRAIN_TRIM = 'data/train_one_ans.csv'
+TEST_TRIM = 'data/test_one_ans.csv'
 VW_INPUT_TRAIN = 'vw/qa_vw.tr'
 VW_INPUT_DEV = 'vw/qa_vw.de'
 VW_MODEL = 'vw/qa_vw.model'
@@ -42,15 +44,15 @@ def main(regenerate=False, testing=False):
     build_q_nouns()
     
     if not testing:
-        if (not os.path.isfile(PKL_TRAIN)) or (not os.path.isfile(PKL_DEV) or regenerate):
-            train = load_training_data(TRAIN)
-            generate_train_dev(train)
+        #if (not os.path.isfile(PKL_TRAIN)) or (not os.path.isfile(PKL_DEV) or regenerate):
+        train = load_training_data(TRAIN_TRIM)
+        generate_train_dev(train)
 
         train = pickle.load(open(PKL_TRAIN, "rb"))
         dev = pickle.load(open(PKL_DEV, "rb"))
     else:
         train = full_data(load_training_data(TRAIN), False)
-        dev = load_testing_data(TEST)
+        dev = load_testing_data(TEST_TRIM)
 
     print 'Generating Classification Data'
     # training type_data
@@ -208,7 +210,7 @@ def load_testing_data(filename):
 
 def format_scores(data):
     formatted_data = {}
-    for i in range(0, 4):
+    for i in range(0, len(data)):
         item =data[i]
         split_data = item.split(':')
         if len(split_data) == 2:
@@ -319,7 +321,7 @@ def get_best_label(formatted_answers, item, label, data_type, normalize=True):
     import operator
 
     feats = Counter()
-    max_value = max(item[label].iteritems(), key=operator.itemgetter(0))[0]
+    max_value = item[label].keys()[0]
     feats['a_' + item[label][max_value]] = 1
     
     #wikipedia features
