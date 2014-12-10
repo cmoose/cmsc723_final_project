@@ -345,7 +345,7 @@ def get_best_label(formatted_answers, item, label, data_type, normalize=True):
     return formatted_answers
 
 
-def get_labels(formatted_answers, item, label, data_type, normalize=False):
+def get_labels(formatted_answers, item, label, data_type, normalize=True):
 
     #q_nouns = get_cached_nouns(item['id'])
     for k, v in item[label].items():
