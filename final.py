@@ -44,9 +44,9 @@ def main(regenerate=False, testing=False):
     build_q_nouns()
     
     if not testing:
-        #if (not os.path.isfile(PKL_TRAIN)) or (not os.path.isfile(PKL_DEV) or regenerate):
-        train = load_training_data(TRAIN_TRIM)
-        generate_train_dev(train)
+        if (not os.path.isfile(PKL_TRAIN)) or (not os.path.isfile(PKL_DEV) or regenerate):
+            train = load_training_data(TRAIN_TRIM)
+            generate_train_dev(train)
 
         train = pickle.load(open(PKL_TRAIN, "rb"))
         dev = pickle.load(open(PKL_DEV, "rb"))
@@ -101,10 +101,10 @@ def dev_results(num_questions, data_type):
     vpw_guess = {}
     count = 0
     for question in predictions_by_question:
-        max_value = -maxint
+        max_value = maxint
         max_object = {}
         for prediction in question:
-            if prediction['prediction_score'] > max_value:
+            if prediction['prediction_score'] < max_value:
                 max_value = prediction['prediction_score']
                 max_object = prediction
             vpw_guess[count] = max_object
@@ -318,19 +318,17 @@ def get_wp_word_count(q_nouns, answer):
 
  
 def get_best_label(formatted_answers, item, label, data_type, normalize=True):
-    import operator
-
     feats = Counter()
     max_value = item[label].keys()[0]
     feats['a_' + item[label][max_value]] = 1
-    
+
     #wikipedia features
-    answer = item[label][max_value]
-    #q_nouns = get_nouns(item['text'])
+    '''answer = item[label][max_value]
+    q_nouns = get_nouns(item['text'])
     q_nouns = get_cached_nouns(item['id'])
     noun_word_count = get_wp_word_count(q_nouns, answer)
     feats['wp_q_word_count'] = noun_word_count
-    
+'''
     if normalize == True:
         wiki_max_prob = 141.312125
         quanta_max_prob = 0.934937484
@@ -348,8 +346,8 @@ def get_best_label(formatted_answers, item, label, data_type, normalize=True):
 
 
 def get_labels(formatted_answers, item, label, data_type, normalize=False):
-    #q_nouns = get_nouns(item['text'])
-    q_nouns = get_cached_nouns(item['id'])
+
+    #q_nouns = get_cached_nouns(item['id'])
     for k, v in item[label].items():
         feats = Counter()
         if data_type == Data.dev or data_type == Data.test:
@@ -357,8 +355,8 @@ def get_labels(formatted_answers, item, label, data_type, normalize=False):
         feats['a_' + v] = 1
         
         #wikipedia feature
-        noun_word_count = get_wp_word_count(q_nouns, v)
-        feats['wp_q_word_count'] = noun_word_count
+        #noun_word_count = get_wp_word_count(q_nouns, v)
+        #feats['wp_q_word_count'] = noun_word_count
         
         if normalize == True:
             wiki_max_prob = 305.988897
@@ -402,13 +400,13 @@ def question_features(item):
     stopwords = build_stopwords()
     sentences = nltk.sent_tokenize(item['text'])
     for sentence in sentences:
-        raw_tokens = nltk.word_tokenize(sentence)
+        tokens = nltk.word_tokenize(sentence)
 
         #Stopwords
-        tokens = []
-        for token in raw_tokens:
-            if stopwords.count(token.strip()) == 0:
-                tokens.append(token.strip())
+        #tokens = []
+        #for token in raw_tokens:
+        #    if stopwords.count(token.strip()) == 0:
+        #        tokens.append(token.strip())
 
         # POS
         #tagged_tokens = nltk.pos_tag(tokens)
