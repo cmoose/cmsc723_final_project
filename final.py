@@ -41,7 +41,7 @@ def main(regenerate=False, testing=False):
     #load wikipedia data
     load_wikipedia()
     build_q_nouns()
-    
+
     if not testing:
         if (not os.path.isfile(PKL_TRAIN)) or (not os.path.isfile(PKL_DEV) or regenerate):
             train = load_training_data(TRAIN)
@@ -100,10 +100,10 @@ def dev_results(num_questions, data_type):
     vpw_guess = {}
     count = 0
     for question in predictions_by_question:
-        max_value = -maxint
+        max_value = maxint
         max_object = {}
         for prediction in question:
-            if prediction['prediction_score'] > max_value:
+            if prediction['prediction_score'] < max_value:
                 max_value = prediction['prediction_score']
                 max_object = prediction
             vpw_guess[count] = max_object
@@ -289,7 +289,10 @@ def get_cached_nouns(q_id):
 
 
 def lookup_article_title(answer):
+    answer = answer.replace(')', '')
+    answer = answer.replace('(', '')
     for article in WP_COMMA_ARTICLES:
+        #print answer
         if re.search(answer, article):
             return article
     return None
@@ -314,21 +317,21 @@ def get_wp_word_count(q_nouns, answer):
                     count+=1
     return count
 
- 
+
 def get_best_label(formatted_answers, item, label, data_type, normalize=True):
     import operator
 
     feats = Counter()
     max_value = max(item[label].iteritems(), key=operator.itemgetter(0))[0]
     feats['a_' + item[label][max_value]] = 1
-    
+
     #wikipedia features
     answer = item[label][max_value]
     #q_nouns = get_nouns(item['text'])
     q_nouns = get_cached_nouns(item['id'])
     noun_word_count = get_wp_word_count(q_nouns, answer)
     feats['wp_q_word_count'] = noun_word_count
-    
+
     if normalize == True:
         wiki_max_prob = 141.312125
         quanta_max_prob = 0.934937484
@@ -353,11 +356,11 @@ def get_labels(formatted_answers, item, label, data_type, normalize=False):
         if data_type == Data.dev or data_type == Data.test:
             DEV_GUESSES.append(v)
         feats['a_' + v] = 1
-        
+
         #wikipedia feature
         noun_word_count = get_wp_word_count(q_nouns, v)
         feats['wp_q_word_count'] = noun_word_count
-        
+
         if normalize == True:
             wiki_max_prob = 305.988897
             quanta_max_prob = 0.934937484
@@ -409,9 +412,10 @@ def question_features(item):
                 tokens.append(token.strip())
 
         # POS
-        #tagged_tokens = nltk.pos_tag(tokens)
+        #tagged_tokens = nltk.pos_tag(raw_tokens)
         #for a in range(len(tagged_tokens)):
-        #    feats['scp_' + tagged_tokens[a][0] + '_' + tagged_tokens[a][1]] += 1
+        #    if tagged_tokens[a][1] == 'NN':
+        #        feats['scp_' + tagged_tokens[a][0] + '_' + tagged_tokens[a][1]] += 1
 
         # Bag of words
         for a in range(len(tokens)):
@@ -419,7 +423,7 @@ def question_features(item):
 
         # n_gram
         #for n in range(2, 4):
-        #    n_gram = nltk.ngrams(tokens, n)
+        #    n_gram = nltk.ngrams(raw_tokens, n)
         #    for gram in n_gram:
         #        feats['n%s_%s' % (str(n), repr(gram[0]))] += 1
 
