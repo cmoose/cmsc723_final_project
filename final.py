@@ -37,10 +37,10 @@ class Data(Enum):
     test = 2
 
 
-def main(regenerate=False, testing=False):
+def main(regenerate=False, testing=True):
     #load wikipedia data
-    load_wikipedia()
-    build_q_nouns()
+    #load_wikipedia()
+    #build_q_nouns()
 
     if not testing:
         if (not os.path.isfile(PKL_TRAIN)) or (not os.path.isfile(PKL_DEV) or regenerate):
@@ -257,8 +257,8 @@ def full_data(data, mangle=False):
 def answer_features(item, data_type):
     array_of_answers = []
     if data_type == Data.test or data_type == Data.dev:
-        get_best_label(array_of_answers, item, 'wiki', data_type)
-        get_best_label(array_of_answers, item, 'quanta', data_type)
+        get_labels(array_of_answers, item, 'wiki', data_type)
+        get_labels(array_of_answers, item, 'quanta', data_type)
     else:
         get_labels(array_of_answers, item, 'wiki', data_type)
         get_labels(array_of_answers, item, 'quanta', data_type)
@@ -326,11 +326,11 @@ def get_best_label(formatted_answers, item, label, data_type, normalize=True):
     feats['a_' + item[label][max_value]] = 1
 
     #wikipedia features
-    answer = item[label][max_value]
+    #answer = item[label][max_value]
     #q_nouns = get_nouns(item['text'])
-    q_nouns = get_cached_nouns(item['id'])
-    noun_word_count = get_wp_word_count(q_nouns, answer)
-    feats['wp_q_word_count'] = noun_word_count
+    #q_nouns = get_cached_nouns(item['id'])
+    #noun_word_count = get_wp_word_count(q_nouns, answer)
+    #feats['wp_q_word_count'] = noun_word_count
 
     if normalize == True:
         wiki_max_prob = 141.312125
@@ -350,7 +350,7 @@ def get_best_label(formatted_answers, item, label, data_type, normalize=True):
 
 def get_labels(formatted_answers, item, label, data_type, normalize=False):
     #q_nouns = get_nouns(item['text'])
-    q_nouns = get_cached_nouns(item['id'])
+    #q_nouns = get_cached_nouns(item['id'])
     for k, v in item[label].items():
         feats = Counter()
         if data_type == Data.dev or data_type == Data.test:
@@ -358,8 +358,8 @@ def get_labels(formatted_answers, item, label, data_type, normalize=False):
         feats['a_' + v] = 1
 
         #wikipedia feature
-        noun_word_count = get_wp_word_count(q_nouns, v)
-        feats['wp_q_word_count'] = noun_word_count
+        #noun_word_count = get_wp_word_count(q_nouns, v)
+        #feats['wp_q_word_count'] = noun_word_count
 
         if normalize == True:
             wiki_max_prob = 305.988897
@@ -406,10 +406,10 @@ def question_features(item):
         raw_tokens = nltk.word_tokenize(sentence)
 
         #Stopwords
-        tokens = []
-        for token in raw_tokens:
-            if stopwords.count(token.strip()) == 0:
-                tokens.append(token.strip())
+        #tokens = []
+        #for token in raw_tokens:
+        #    if stopwords.count(token.strip()) == 0:
+        #        tokens.append(token.strip())
 
         # POS
         #tagged_tokens = nltk.pos_tag(raw_tokens)
@@ -418,8 +418,8 @@ def question_features(item):
         #        feats['scp_' + tagged_tokens[a][0] + '_' + tagged_tokens[a][1]] += 1
 
         # Bag of words
-        for a in range(len(tokens)):
-            feats['sc_' + tokens[a]] += 1
+        #for a in range(len(tokens)):
+        #    feats['sc_' + tokens[a]] += 1
 
         # n_gram
         #for n in range(2, 4):
